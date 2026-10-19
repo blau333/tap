@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>tap — подтверждение аккаунта</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&display=swap');
+
+  :root{
+    --bg: #F5F3FF;
+    --card: #FFFFFF;
+    --ink: #1A1330;
+    --muted: #8A83A6;
+    --violet: #6D4AFF;
+    --violet-dark: #5636E0;
+    --coral: #FF6B4A;
+    --ring: rgba(109,74,255,0.14);
+  }
+
+  *{ box-sizing: border-box; }
+
+  html,body{
+    margin:0;
+    padding:0;
+    min-height:100vh;
+    background: var(--bg);
+    font-family: 'Inter', system-ui, sans-serif;
+    color: var(--ink);
+  }
+
+  body{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    min-height:100vh;
+    padding: 32px 20px;
+    position:relative;
+    overflow-x:hidden;
+  }
+
+  /* ambient ripple field behind everything */
+  .field{
+    position:fixed;
+    inset:0;
+    z-index:0;
+    pointer-events:none;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+  }
+  .field svg{ width: min(900px, 140vw); height: auto; opacity:0.6; }
+  .field circle{
+    fill:none;
+    stroke: var(--violet);
+    stroke-opacity:0.16;
+  }
+  .field .r1{ animation: ripple 6s ease-out infinite; }
+  .field .r2{ animation: ripple 6s ease-out infinite 2s; }
+  .field .r3{ animation: ripple 6s ease-out infinite 4s; }
+
+  @keyframes ripple{
+    0%   { r: 40;  stroke-opacity:0.35; }
+    100% { r: 420; stroke-opacity:0; }
+  }
+
+  .card{
+    position:relative;
+    z-index:1;
+    width:100%;
+    max-width: 440px;
+    background: var(--card);
+    border-radius: 28px;
+    padding: 44px 36px 36px;
+    box-shadow: 0 1px 2px rgba(26,19,48,0.04), 0 24px 60px -20px rgba(26,19,48,0.18);
+    text-align:center;
+  }
+
+  .wordmark{
+    display:inline-flex;
+    align-items:center;
+    gap:8px;
+    font-family:'Space Grotesk', sans-serif;
+    font-weight:700;
+    font-size: 15px;
+    letter-spacing: 0.02em;
+    color: var(--violet-dark);
+    margin-bottom: 30px;
+  }
+  .wordmark .dot{
+    width:8px; height:8px; border-radius:50%;
+    background: var(--coral);
+    display:inline-block;
+  }
+
+  .glyph{
+    width: 84px;
+    height: 84px;
+    margin: 0 auto 26px;
+    position:relative;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+  }
+  .glyph svg{ width:100%; height:100%; }
+  .glyph .pulse{
+    fill:none;
+    stroke: var(--violet);
+    stroke-width: 1.5;
+  }
+  .glyph .p1{ animation: pulse 2.4s ease-out infinite; transform-origin:center; }
+  .glyph .p2{ animation: pulse 2.4s ease-out infinite 0.8s; transform-origin:center; }
+  @keyframes pulse{
+    0%   { opacity:0.5; transform:scale(0.6); }
+    80%  { opacity:0; transform:scale(1.35); }
+    100% { opacity:0; transform:scale(1.35); }
+  }
+  .glyph .core{
+    fill: var(--violet);
+  }
+
+  h1{
+    font-family:'Space Grotesk', sans-serif;
+    font-size: 23px;
+    font-weight:600;
+    line-height:1.3;
+    margin: 0 0 12px;
+    letter-spacing: -0.01em;
+  }
+
+  p.sub{
+    margin: 0 0 8px;
+    font-size: 15px;
+    line-height:1.55;
+    color: var(--muted);
+  }
+
+  .email{
+    display:inline-block;
+    margin: 4px 0 28px;
+    font-weight:600;
+    color: var(--ink);
+    border-bottom: 1.5px dashed var(--ring);
+    padding-bottom: 1px;
+  }
+
+  .choices{
+    display:flex;
+    flex-direction:column;
+    gap: 10px;
+    margin-bottom: 22px;
+  }
+
+  .choice{
+    display:flex;
+    align-items:center;
+    gap: 12px;
+    width:100%;
+    padding: 13px 18px;
+    border-radius: 14px;
+    border: 1.5px solid #ECE9FB;
+    background: #FCFBFF;
+    color: var(--ink);
+    font-family: 'Inter', sans-serif;
+    font-size: 15px;
+    font-weight:600;
+    text-decoration:none;
+    cursor:pointer;
+    transition: border-color .15s ease, transform .15s ease, background .15s ease;
+  }
+  .choice:hover{
+    border-color: var(--violet);
+    background:#FAF9FF;
+    transform: translateY(-1px);
+  }
+  .choice:active{ transform: translateY(0); }
+  .choice:focus-visible{
+    outline: 2px solid var(--violet);
+    outline-offset: 2px;
+  }
+  .choice .icon{ width:22px; height:22px; flex-shrink:0; }
+  .choice .label{ flex:1; text-align:left; }
+  .choice .arrow{
+    color: var(--muted);
+    font-size:16px;
+    transition: transform .15s ease;
+  }
+  .choice:hover .arrow{ transform: translateX(3px); color: var(--violet); }
+
+  .divider{
+    display:flex;
+    align-items:center;
+    gap: 12px;
+    margin: 22px 0 18px;
+    color: var(--muted);
+    font-size: 12px;
+  }
+  .divider::before, .divider::after{
+    content:'';
+    flex:1;
+    height:1px;
+    background: #ECE9FB;
+  }
+
+  .resend{
+    font-size: 13.5px;
+    color: var(--muted);
+    margin: 0;
+  }
+  .resend button{
+    background:none;
+    border:none;
+    color: var(--violet-dark);
+    font: inherit;
+    font-weight:600;
+    cursor:pointer;
+    padding:0;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+  .resend button:focus-visible{ outline: 2px solid var(--violet); outline-offset:2px; border-radius:2px; }
+
+  .footnote{
+    margin-top: 26px;
+    font-size: 12px;
+    color: #B4AFCB;
+    line-height:1.5;
+  }
+
+  @media (max-width: 380px){
+    .card{ padding: 36px 22px 28px; border-radius: 22px; }
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    .field .r1, .field .r2, .field .r3, .glyph .p1, .glyph .p2{ animation: none; }
+  }
+</style>
+</head>
+<body>
+
+  <div class="field" aria-hidden="true">
+    <svg viewBox="0 0 400 400">
+      <circle class="r1" cx="200" cy="200" r="40"/>
+      <circle class="r2" cx="200" cy="200" r="40"/>
+      <circle class="r3" cx="200" cy="200" r="40"/>
+    </svg>
+  </div>
+
+  <main class="card">
+    <div class="wordmark"><span class="dot"></span>tap</div>
+
+    <div class="glyph" aria-hidden="true">
+      <svg viewBox="0 0 84 84">
+        <circle class="pulse p1" cx="42" cy="42" r="18"/>
+        <circle class="pulse p2" cx="42" cy="42" r="18"/>
+        <circle class="core" cx="42" cy="42" r="9"/>
+      </svg>
+    </div>
+
+    <h1>Остался один тап</h1>
+    <p class="sub">Мы отправили ссылку для подтверждения на</p>
+    <span class="email">{{ email }}</span>
+
+    <div class="choices">
+      {% if show_gmail %}
+      <a class="choice" href="https://mail.google.com/mail/u/0/#inbox" target="_blank" rel="noopener">
+        <svg class="icon" viewBox="0 0 24 24"><path fill="#EA4335" d="M12 13.5 2 6.5V18a2 2 0 0 0 2 2h1V9.7l7 5.2 7-5.2V20h1a2 2 0 0 0 2-2V6.5z"/><path fill="#34A853" d="M2 6.5 12 13.5V9.7l-9-6.4C2.4 3 2 3.9 2 4.5z"/><path fill="#4285F4" d="M22 6.5v0L12 13.5V9.7l9-6.4c.6.3 1 .96 1 1.66z"/><path fill="#FBBC05" d="M2 4.5c0-.7.4-1.5 1-1.8L12 9.2 3 2.7c.5-.3 1.1-.4 1.7-.2"/></svg>
+        <span class="label">Открыть Gmail</span>
+        <span class="arrow">→</span>
+      </a>
+      {% endif %}
+      {% if show_yandex %}
+      <a class="choice" href="https://mail.yandex.ru/" target="_blank" rel="noopener">
+        <svg class="icon" viewBox="0 0 24 24"><rect width="24" height="24" rx="6" fill="#FC3F1D"/><path fill="#fff" d="M13.4 5.5h-1.9c-2.5 0-4.2 1.3-4.2 3.6 0 1.9 1 2.9 2.5 3.9l-2.9 4.5h2.1l2.6-4.1h1.2v4.1h1.9V5.5h-1.3zm-.6 6.2h-.9c-1.2 0-1.8-.9-1.8-2.4 0-1.4.7-2.2 1.9-2.2h.8v4.6z"/></svg>
+        <span class="label">Открыть Яндекс Почту</span>
+        <span class="arrow">→</span>
+      </a>
+      {% endif %}
+    </div>
+
+    <div class="divider">не пришло письмо</div>
+
+    <form method="post" action="/resend" class="resend">
+      Проверьте папку «Спам» или
+      <input type="hidden" name="email" value="{{ email }}">
+      <button type="submit">отправить ссылку ещё раз</button>
+    </form>
+
+    <p class="footnote">Ссылка действительна 24 часа. Если вы не регистрировались в tap — просто игнорируйте это письмо.</p>
+  </main>
+
+</body>
+</html>

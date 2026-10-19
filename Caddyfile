@@ -1,0 +1,5 @@
+{$DOMAIN:localhost} {
+	# For DOMAIN=localhost (or unset) Caddy uses its internal CA (self-signed).
+	# For a real public domain Caddy automatically provisions Let's Encrypt.
+	reverse_proxy app:3000
+}

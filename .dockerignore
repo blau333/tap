@@ -1,0 +1,5 @@
+/target
+kolo.db
+.git
+node_modules
+.tmp-build

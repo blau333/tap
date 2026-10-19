@@ -1,0 +1,29 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Kolo",
+  "version": "0.1.0",
+  "identifier": "ru.kolo.desktop",
+  "build": {
+    "devUrl": "http://127.0.0.1:3000",
+    "frontendDist": "../static"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Kolo",
+        "width": 1280,
+        "height": 820,
+        "minWidth": 900,
+        "minHeight": 620,
+        "resizable": true,
+        "fullscreen": false
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": false
+  }
+}

@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+
+{% block title %}сообщения{% endblock %}
+{% block eyebrow %}Диалоги{% endblock %}
+{% block heading %}Ваши <span class="highlight">сообщения</span>{% endblock %}
+
+{% block content %}
+<main class="conversation-list">
+  {% for conv in conversations %}
+  <article class="conversation-row">
+    <span class="avatar avatar-lg">{{ conv.avatar_initials }}</span>
+    <div class="conversation-body">
+      <div class="conversation-top">
+        <p class="author-name">{{ conv.peer_name }}</p>
+        <span class="post-time">{{ conv.time_label }}</span>
+      </div>
+      <p class="conversation-preview">{{ conv.last_message }}</p>
+    </div>
+    {% if conv.unread > 0 %}
+    <span class="unread-badge">{{ conv.unread }}</span>
+    {% endif %}
+  </article>
+  {% endfor %}
+</main>
+{% endblock %}

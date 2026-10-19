@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+
+{% block title %}профиль{% endblock %}
+{% block eyebrow %}{{ profile.handle }}{% endblock %}
+{% block heading %}Привет, <span class="highlight">{{ profile.name }}</span>{% endblock %}
+
+{% block content %}
+<main class="profile-page">
+  <section class="profile-card">
+    <span class="avatar avatar-xl">{{ profile.avatar_initials }}</span>
+    <div>
+      <p class="author-name">{{ profile.name }}</p>
+      <p class="author-sub">{{ profile.handle }}</p>
+      <p class="profile-bio">{{ profile.bio }}</p>
+      <div class="profile-stats">
+        <span><strong>{{ profile.friends }}</strong> друзей</span>
+        <span><strong>{{ profile.posts_count }}</strong> постов</span>
+      </div>
+    </div>
+  </section>
+
+  <p class="section-label">Публикации</p>
+  <div class="board">
+    {% for post in posts %}
+    <article class="post" style="--accent:{{ post.accent }}; --accent2:{{ post.accent2 }}">
+      <div class="post-cover">
+        <svg class="cover-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2">{{ post.icon_markup|safe }}</svg>
+        <span class="tag">{{ post.category }}</span>
+        <span class="post-time">{{ post.time_label }}</span>
+      </div>
+      <p class="post-text">{{ post.body }}</p>
+      <div class="post-bottom">
+        <span class="reaction">♥ {{ post.likes }}</span>
+        <span class="reaction">💬 {{ post.comments }}</span>
+      </div>
+    </article>
+    {% endfor %}
+  </div>
+</main>
+{% endblock %}

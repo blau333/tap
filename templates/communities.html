@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+
+{% block title %}сообщества{% endblock %}
+{% block eyebrow %}Ваш круг{% endblock %}
+{% block heading %}Сообщества <span class="highlight">по интересам</span>{% endblock %}
+
+{% block content %}
+<main class="board board-communities">
+  {% for c in communities %}
+  <article class="post community-card" style="--accent:{{ c.accent }}; --accent2:{{ c.accent2 }}">
+    <div class="post-cover">
+      <svg class="cover-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2">{{ c.icon_markup|safe }}</svg>
+      <span class="tag">{{ c.members }} участников</span>
+    </div>
+    <p class="author-name community-name">{{ c.name }}</p>
+    <p class="post-text">{{ c.description }}</p>
+    <div class="post-bottom">
+      <span class="reaction join-btn">Вступить</span>
+    </div>
+  </article>
+  {% endfor %}
+</main>
+{% endblock %}

@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>tap — {% block title %}лента{% endblock %}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+
+  <header class="topbar">
+    <a class="logo" href="/feed">
+      <span class="logo-text">tap</span>
+    </a>
+    <div class="topbar-greeting">
+      <p class="eyebrow">{% block eyebrow %}Сегодня{% endblock %}</p>
+      <h1>{% block heading %}Лента{% endblock %}</h1>
+    </div>
+    <div class="topbar-search">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+      <span>Поиск в ленте</span>
+    </div>
+    <a class="topbar-avatar" href="/profile" title="Мой профиль">{{ user.avatar_initials }}</a>
+    <form class="topbar-logout" method="post" action="/logout">
+      <button type="submit" title="Выйти">Выйти</button>
+    </form>
+  </header>
+
+  {% block content %}{% endblock %}
+
+  <div class="bottom-dock">
+    <a class="create-post-fab" href="/feed#new-post" aria-label="Создать пост" title="Создать пост">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+      <span>Пост</span>
+    </a>
+    <nav class="tabbar">
+      <a class="tab {% if active_tab == "messages" %}active{% endif %}" href="/messages" aria-label="Сообщения">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        <span>Сообщения</span>
+      </a>
+      <a class="tab {% if active_tab == "communities" %}active{% endif %}" href="/communities" aria-label="Сообщества">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3"/><circle cx="17" cy="10" r="2.5"/><path d="M3.5 19c.6-3 2.7-4.7 5.5-4.7s4.9 1.7 5.5 4.7"/><path d="M14.8 15.1c2.2.2 3.8 1.7 4.2 3.9"/></svg>
+        <span>Сообщества</span>
+      </a>
+      <a class="tab {% if active_tab == "home" %}active{% endif %}" href="/feed" aria-label="Главная">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10v9a1 1 0 0 0 1 1h11a1 1 0 0 0 1-1v-9"/></svg>
+        <span>Главная</span>
+      </a>
+      <a class="tab {% if active_tab == "profile" %}active{% endif %}" href="/profile" aria-label="Профиль">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.5"/><path d="M4.5 20c1.3-3.8 4.2-5.8 7.5-5.8s6.2 2 7.5 5.8"/></svg>
+        <span>Профиль</span>
+      </a>
+    </nav>
+  </div>
+
+</body>
+</html>

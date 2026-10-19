@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+
+{% block title %}лента{% endblock %}
+{% block eyebrow %}Сегодня, {{ today }}{% endblock %}
+{% block heading %}Что нового в <span class="highlight">tap</span>{% endblock %}
+
+{% block content %}
+<section class="composer" id="new-post">
+  <div class="composer-author">
+    <span class="avatar">{{ user.avatar_initials }}</span>
+    <div>
+      <p class="author-name">{{ user.name }}</p>
+      <p class="author-sub">{{ user.handle }}</p>
+    </div>
+  </div>
+  <form class="composer-form" method="post" action="/posts">
+    <textarea name="body" placeholder="Что хотите написать?" required maxlength="1000"></textarea>
+    <button type="submit">Опубликовать</button>
+  </form>
+</section>
+
+<main class="board">
+  {% for post in posts %}
+  <article class="post" style="--accent:{{ post.accent }}; --accent2:{{ post.accent2 }}">
+    <div class="post-cover">
+      <svg class="cover-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2">{{ post.icon_markup|safe }}</svg>
+      <span class="tag">{{ post.category }}</span>
+      <span class="post-time">{{ post.time_label }}</span>
+    </div>
+    <div class="post-author">
+      <span class="avatar">{{ post.avatar_initials }}</span>
+      <div>
+        <p class="author-name">{{ post.author_name }}</p>
+        <p class="author-sub">{{ post.author_sub }}</p>
+      </div>
+    </div>
+    <p class="post-text">{{ post.body }}</p>
+    <div class="post-bottom">
+      <span class="reaction">♥ {{ post.likes }}</span>
+      <span class="reaction">💬 {{ post.comments }}</span>
+    </div>
+  </article>
+  {% endfor %}
+</main>
+{% endblock %}

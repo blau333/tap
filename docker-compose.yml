@@ -1,0 +1,64 @@
+services:
+  mariadb:
+    image: mariadb:11
+    container_name: kolo-mariadb
+    restart: unless-stopped
+    environment:
+      MARIADB_DATABASE: kolo
+      MARIADB_USER: kolo
+      MARIADB_PASSWORD: kolo
+      MARIADB_ROOT_PASSWORD: kolo_root
+    ports:
+      - "3306:3306"
+    volumes:
+      - kolo_db_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build: .
+    container_name: kolo-app
+    restart: unless-stopped
+    depends_on:
+      mariadb:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: mysql://kolo:kolo@mariadb:3306/kolo
+      # SMTP is optional. Uncomment/configure to send real confirmation emails;
+      # without it the verification link is printed to the app log.
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USERNAME: ${SMTP_USERNAME:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM: ${SMTP_FROM:-tap@kolo.demo}
+      SMTP_TLS: ${SMTP_TLS:-starttls}
+      # WebAuthn relying-party identity. localhost is the default (Caddy uses
+      # its internal CA); for a public domain both must match the real origin.
+      WEBAUTHN_RP_ID: ${WEBAUTHN_RP_ID:-localhost}
+      WEBAUTHN_RP_ORIGIN: ${WEBAUTHN_RP_ORIGIN:-https://localhost}
+    ports:
+      - "3000:3000"
+
+  caddy:
+    image: caddy:2
+    container_name: kolo-caddy
+    restart: unless-stopped
+    depends_on:
+      - app
+    environment:
+      DOMAIN: ${DOMAIN:-localhost}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - kolo_caddy_data:/data
+      - kolo_caddy_config:/config
+
+volumes:
+  kolo_db_data:
+  kolo_caddy_data:
+  kolo_caddy_config:
