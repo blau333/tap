@@ -27,9 +27,4 @@ rand = "0.8"
 async-trait = "0.1"
 base64 = "0.21"
 lettre = { version = "0.11", default-features = false, features = ["smtp-transport", "builder", "tokio1-rustls-tls"] }
-webauthn-rs = "0.5"
 url = "2"
-# Vendored OpenSSL only for the windows-gnu target (no system OpenSSL there).
-# Linux/macOS keep the system OpenSSL via pkg-config (see Dockerfile libssl-dev).
-[target.'cfg(all(windows, target_env = "gnu"))'.dependencies]
-openssl = { version = "0.10", features = ["vendored"] }

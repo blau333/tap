@@ -41,7 +41,11 @@ pub async fn login_page(
     if q.add.is_none() && session_user_id(&pool, &headers).await.is_some() {
         return Redirect::to("/app").into_response();
     }
-    LoginTemplate { error: None, email: String::new() }.into_response()
+    LoginTemplate {
+        error: None,
+        email: q.email.unwrap_or_default(),
+    }
+    .into_response()
 }
 
 #[derive(Debug, Deserialize)]
@@ -53,6 +57,7 @@ pub struct LoginForm {
 #[derive(Debug, Deserialize)]
 pub struct LoginQuery {
     pub add: Option<String>,
+    pub email: Option<String>,
 }
 
 pub async fn login_submit(
@@ -67,7 +72,7 @@ pub async fn login_submit(
     }
 
     let user: Option<User> = sqlx::query_as::<_, User>(
-        "SELECT id, password_hash, email_verified FROM users WHERE email = ?",
+        "SELECT id, password_hash FROM users WHERE email = ?",
     )
     .bind(&email)
     .fetch_optional(&pool)
@@ -79,9 +84,6 @@ pub async fn login_submit(
         Some(user) => {
             if user.password_hash != hash_password(&form.password) {
                 return LoginTemplate { error: Some("Неверный пароль.".into()), email }.into_response();
-            }
-            if !user.email_verified {
-                return Redirect::to(&format!("/verify-sent?email={}", encode_query(&email))).into_response();
             }
             match auth::create_session(&pool, user.id).await {
                 Ok(token) => {
@@ -513,6 +515,7 @@ async fn send_verification_email(email: String, url: String) {
 #[template(path = "verify_sent.html")]
 pub struct VerifySentTemplate {
     pub email: String,
+    pub login_url: String,
     pub show_gmail: bool,
     pub show_yandex: bool,
 }
@@ -550,6 +553,7 @@ pub async fn verify_sent_page(
     let email = q.email.unwrap_or_default();
     let (show_gmail, show_yandex) = email_providers(&email);
     VerifySentTemplate {
+        login_url: format!("/login?email={}", encode_query(&email)),
         email,
         show_gmail,
         show_yandex,

@@ -262,6 +262,10 @@
     <span class="email">{{ email }}</span>
 
     <div class="choices">
+      <a class="choice" href="{{ login_url }}">
+        <span class="label">Пропустить и войти</span>
+        <span class="arrow">→</span>
+      </a>
       {% if show_gmail %}
       <a class="choice" href="https://mail.google.com/mail/u/0/#inbox" target="_blank" rel="noopener">
         <svg class="icon" viewBox="0 0 24 24"><path fill="#EA4335" d="M12 13.5 2 6.5V18a2 2 0 0 0 2 2h1V9.7l7 5.2 7-5.2V20h1a2 2 0 0 0 2-2V6.5z"/><path fill="#34A853" d="M2 6.5 12 13.5V9.7l-9-6.4C2.4 3 2 3.9 2 4.5z"/><path fill="#4285F4" d="M22 6.5v0L12 13.5V9.7l9-6.4c.6.3 1 .96 1 1.66z"/><path fill="#FBBC05" d="M2 4.5c0-.7.4-1.5 1-1.8L12 9.2 3 2.7c.5-.3 1.1-.4 1.7-.2"/></svg>
