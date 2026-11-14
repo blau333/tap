@@ -2088,7 +2088,7 @@ function TapApp() {
   useLayoutEffect(() => {
     const updateMarker = (containerRef, buttons, selected, setMarker) => {
       const container = containerRef.current;
-      const button = buttons.current[selected];
+      const button = buttons[selected];
       if (!container || !button) return;
       const left = button.offsetLeft;
       const width = button.offsetWidth;
