@@ -818,8 +818,11 @@ function TapApp() {
   const profileTabsRef = useRef(null);
   const viewProfileTabsRef = useRef(null);
   const profileTabButtonsRef = useRef({ own: {}, view: {} });
+  const sortTabsRef = useRef(null);
+  const sortButtonsRef = useRef({});
   const [profileTabMarker, setProfileTabMarker] = useState({ left: 0, width: 0 });
   const [viewProfileTabMarker, setViewProfileTabMarker] = useState({ left: 0, width: 0 });
+  const [sortMarker, setSortMarker] = useState({ left: 0, width: 0 });
   const editTimer = useRef(null);
 
   const [story, setStory] = useState(null);
@@ -2097,11 +2100,12 @@ function TapApp() {
     const update = () => {
       updateMarker(profileTabsRef, profileTabButtonsRef.current.own, profileTab, setProfileTabMarker);
       updateMarker(viewProfileTabsRef, profileTabButtonsRef.current.view, viewProfileTab, setViewProfileTabMarker);
+      updateMarker(sortTabsRef, sortButtonsRef.current, sort, setSortMarker);
     };
     update();
     window.addEventListener("resize", update);
     return () => window.removeEventListener("resize", update);
-  }, [profileTab, viewProfileTab, viewUserId, viewUser, tab, savedPosts.length]);
+  }, [profileTab, viewProfileTab, sort, viewUserId, viewUser, tab, savedPosts.length]);
   const unreadMsgCount = conversations.filter((c) => c.unread).length;
   const unreadNotifCount = notifications.filter((n) => n.unread).length;
   const islandCount = unreadMsgCount + unreadNotifCount;
@@ -3959,15 +3963,18 @@ function TapApp() {
         .t-btn-solid { background: var(--gold); border: none; color: #17170F; font-weight: 600; padding: 7px 16px; border-radius: 999px; font-size: 13px; cursor: pointer; font-family: 'Unbounded', sans-serif; }
         .t-btn-solid:disabled { opacity: 0.4; cursor: not-allowed; }
 
-        .t-sorts { display: flex; gap: 3px; background: var(--surface); border: 1px solid var(--border); border-radius: 999px; padding: 4px; width: fit-content; margin-bottom: 16px; }
+        .t-sorts { position: relative; display: flex; gap: 3px; background: var(--surface); border: 1px solid var(--border); border-radius: 999px; padding: 4px; width: fit-content; margin-bottom: 16px; }
+        .t-sort-slider { position: absolute; z-index: 0; top: 4px; bottom: 4px; left: 0; width: 0; border-radius: 999px; background: var(--gold); pointer-events: none; transition: transform .32s cubic-bezier(.22,1,.36,1), width .32s cubic-bezier(.22,1,.36,1); }
         .t-refresh-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
         .t-refresh-time { font-size: 11px; color: var(--text-faint); }
         .t-refresh-btn { display: flex; align-items: center; gap: 5px; background: none; border: 1px solid var(--border); color: var(--text-dim); padding: 5px 11px; border-radius: 999px; font-size: 12px; font-weight: 500; cursor: pointer; transition: all .15s; font-family: 'Unbounded', sans-serif; }
         .t-refresh-btn:hover:not(:disabled) { border-color: var(--gold); color: var(--text); }
         .t-refresh-btn:disabled { opacity: 0.5; cursor: default; }
-        .t-sort-btn { display: flex; align-items: center; gap: 5px; background: transparent; border: none; color: var(--text-dim); padding: 6px 12px; border-radius: 999px; font-size: 12.5px; font-weight: 500; cursor: pointer; transition: all .15s; font-family: 'Unbounded', sans-serif; }
-        .t-sort-btn:hover { color: var(--text); }
-        .t-sort-btn.active { background: var(--gold); color: #17170F; }
+        .t-sort-btn { position: relative; z-index: 1; display: flex; align-items: center; gap: 5px; background: transparent; border: none; color: var(--text-dim); padding: 6px 12px; border-radius: 999px; font-size: 12.5px; font-weight: 500; cursor: pointer; transition: color .22s ease, transform .18s ease; font-family: 'Unbounded', sans-serif; }
+        .t-sort-btn:not(.active):hover { color: var(--text); }
+        .t-sort-btn:active { transform: scale(.96); }
+        .t-sort-btn.active { background: transparent; color: #17170F; }
+        @media (prefers-reduced-motion: reduce) { .t-sort-slider, .t-sort-btn { transition: none; } }
 
         .t-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
         .t-card { position: relative; aspect-ratio: 1 / 1; border-radius: 16px; overflow: hidden; cursor: pointer; display: flex; flex-direction: column; background: var(--card); border: 1px solid var(--border); box-shadow: 0 1px 2px rgba(0,0,0,0.25), 0 8px 18px -14px rgba(0,0,0,0.7); transition: transform .15s, box-shadow .15s, border-color .15s; }
@@ -4976,11 +4983,12 @@ function TapApp() {
                 </button>
               </div>
 
-              <div className="t-sorts">
+              <div className="t-sorts" ref={sortTabsRef}>
+                <span className="t-sort-slider" style={{ width: sortMarker.width, transform: `translateX(${sortMarker.left}px)` }} />
                 {SORTS.map((s) => {
                   const Icon = s.icon;
                   return (
-                    <button key={s.id} className={"t-sort-btn" + (sort === s.id ? " active" : "")} onClick={() => setSort(s.id)}>
+                    <button key={s.id} ref={(el) => { sortButtonsRef.current[s.id] = el; }} className={"t-sort-btn" + (sort === s.id ? " active" : "")} onClick={() => setSort(s.id)}>
                       <Icon size={13} />{s.label}
                     </button>
                   );

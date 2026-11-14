@@ -87,6 +87,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/api/accounts/switch", post(handlers::switch_account))
         .route("/api/accounts/remove", post(handlers::remove_account))
         .nest_service("/static", ServeDir::new("static"))
+        .fallback(handlers::not_found)
         .with_state(pool)
         // Never cache HTML/JS/static: the app is redeployed frequently and a
         // stale tap-app.jsx (or styles) is a common source of "updates don't

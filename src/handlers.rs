@@ -24,6 +24,13 @@ pub async fn app_page(auth: AuthUser) -> impl IntoResponse {
     }
 }
 
+pub async fn not_found() -> impl IntoResponse {
+    (
+        StatusCode::NOT_FOUND,
+        Html(include_str!("../templates/Under construction — 404.html")),
+    )
+}
+
 // ===== Login / Logout =====
 
 #[derive(Template)]
