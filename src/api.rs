@@ -132,30 +132,6 @@ fn time_label(dt: NaiveDateTime) -> String {
     }
 }
 
-/// Rough HTML → plain text used only for fallback titles: drops tags and
-/// decodes the few entities Quill emits for special characters.
-fn strip_html(html: &str) -> String {
-    let mut out = String::new();
-    let mut in_tag = false;
-    for c in html.chars() {
-        match c {
-            '<' => in_tag = true,
-            '>' => in_tag = false,
-            _ if !in_tag => out.push(c),
-            _ => {}
-        }
-    }
-    out.replace("&nbsp;", " ")
-        .replace("&amp;", "&")
-        .replace("&lt;", "<")
-        .replace("&gt;", ">")
-        .replace("&quot;", "\"")
-        .replace("&#39;", "'")
-        .split_whitespace()
-        .collect::<Vec<_>>()
-        .join(" ")
-}
-
 #[derive(sqlx::FromRow)]
 struct PostApiRow {
     id: i64,
@@ -724,24 +700,9 @@ pub async fn create_post(
     let title = payload.title.trim().to_string();
     let body = payload.body.trim().to_string();
 
-    if title.is_empty() && body.is_empty() {
+    if title.is_empty() && body.is_empty() && payload.media_url.is_empty() {
         return Err((StatusCode::BAD_REQUEST, "post body required".to_string()));
     }
-
-    // Rich-text editors send HTML in `body`; when the caller didn't provide a
-    // title we derive one from the plain text so cards/search keep working.
-    let title = if title.is_empty() {
-        let plain = strip_html(&body);
-        let mut t: String = plain.chars().take(120).collect();
-        t = t.trim().to_string();
-        if t.is_empty() {
-            "Новый пост".to_string()
-        } else {
-            t
-        }
-    } else {
-        title
-    };
 
     let (author, initials) = load_author(&pool, user.user_id()).await?;
 

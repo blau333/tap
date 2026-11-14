@@ -18,10 +18,10 @@ COPY client-src ./client-src
 COPY static ./static
 COPY babel.config.json ./
 RUN ./node_modules/.bin/babel client-src/tap-app.jsx --out-file /tmp/tap-app.js \
- && ./node_modules/.bin/terser /tmp/tap-app.js -c passes=2 -m -o static/tap-app.min.js \
- && ./node_modules/.bin/terser client-src/e2ee.js -c passes=2 -m -o static/e2ee.min.js \
+ && ./node_modules/.bin/terser /tmp/tap-app.js -c passes=2 -m -o static/tap-app.js \
+ && ./node_modules/.bin/terser client-src/e2ee.js -c passes=2 -m -o static/e2ee.js \
  && ./node_modules/.bin/terser client-src/webauthn.js -c passes=2 -m -o static/webauthn.min.js \
- && rm -f static/tap-app.js static/tap-app.jsx static/e2ee.js static/webauthn.js
+ && rm -f static/tap-app.jsx static/webauthn.js
 
 # ---- Runtime stage ----
 FROM debian:bookworm-slim

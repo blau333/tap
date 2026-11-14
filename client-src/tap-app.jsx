@@ -507,9 +507,11 @@ const LANGUAGES = [
 
 const UI_TRANSLATIONS = {
   ru: {
+    "Заголовок (необязательно)": "Заголовок (необязательно)",
     "Share": "Поделиться", "Reply": "Ответить", "No comments yet. Be the first to say something.": "Пока нет комментариев. Напишите первым."
   },
   en: {
+    "Заголовок (необязательно)": "Title (optional)",
     "Спорт": "Sports", "Технологии": "Technology", "Искусство": "Art", "Путешествия": "Travel", "Музыка": "Music", "Еда": "Food", "Игры": "Games", "Кино": "Movies", "Наука": "Science", "Мода": "Fashion",
     "Привет!": "Hi!", "Как дела?": "How are you?", "Давай знакомиться 😊": "Let's get acquainted 😊", "👍 Звучит хорошо": "👍 Sounds good", "Спасибо!": "Thanks!", "Понял(а), договорились": "Got it, agreed", "Дай посмотрю и отпишусь": "Let me check and get back to you", "Перепишусь чуть позже": "I'll message a bit later", "Привет! Как дела?": "Hi! How are you?", "👋 Рад(а) тебя видеть!": "👋 Good to see you!", "Спасибо, отлично! А у тебя?": "Thanks, great! And you?", "Пожалуйста!": "You're welcome!", "Всегда пожалуйста 😊": "Anytime 😊", "Не за что!": "No problem!", "Отлично, спасибо!": "Great, thanks!", "Нормально, а у тебя?": "Fine, and you?", "Всё по плану 🙂": "All according to plan 🙂", "Встретимся в центре?": "Meet downtown?", "Скину точку на карте": "I'll send a map pin", "У меня на работе": "At my work", "Давай у метро": "Let's meet by the metro", "Давай в 18:00!": "Let's do 18:00!", "Давай сегодня вечером": "Let's do tonight", "Завтра удобнее?": "Is tomorrow better?", "Где встретимся?": "Where should we meet?", "В 19:00 подойдёт?": "Does 19:00 work?", "Могу в 12:00": "I can do 12:00", "Сейчас удобно?": "Is now convenient?", "Давай ближе к вечеру": "Let's do later in the evening", "Сколько стоит?": "How much is it?", "Есть в наличии?": "Is it available?", "Оформи заказ": "Place the order", "Скинь ссылку": "Send the link", "Да, конечно!": "Yes, of course!", "Нет, пока 🙈": "No, not yet 🙈", "Сейчас уточню и напишу": "I'll check and write back", "Хороший вопрос 🙂": "Good question 🙂", "Договорились! 👍": "Agreed! 👍", "Отлично!": "Great!", "Начинаем 🚀": "Let's start 🚀",
     "Горячее": "Hot", "Новые": "New", "Топ": "Top", "Растущие": "Rising", "Главная": "Home", "Страницы": "Pages", "Сообщения": "Messages", "Уведомления": "Notifications", "Профиль": "Profile",
@@ -527,6 +529,7 @@ const UI_TRANSLATIONS = {
     "По релевантности": "By relevance", "По дате": "By date", "По популярности": "By popularity", "Комментарии": "Comments", "Результаты по запросу": "Results for", "Ничего не найдено по запросу": "Nothing found for", "Возможно, вы имели в виду:": "Did you mean:", "В комментариях": "In comments"
   },
   de: {
+    "Заголовок (необязательно)": "Titel (optional)",
     "Спорт": "Sport", "Технологии": "Technologie", "Искусство": "Kunst", "Путешествия": "Reisen", "Музыка": "Musik", "Еда": "Essen", "Игры": "Spiele", "Кино": "Filme", "Наука": "Wissenschaft", "Мода": "Mode",
     "Привет!": "Hallo!", "Как дела?": "Wie geht's?", "Давай знакомиться 😊": "Lass uns kennenlernen 😊", "👍 Звучит хорошо": "👍 Klingt gut", "Спасибо!": "Danke!", "Понял(а), договорились": "Verstanden, abgemacht", "Дай посмотрю и отпишусь": "Ich schaue nach und melde mich", "Перепишусь чуть позже": "Ich schreibe etwas später", "Привет! Как дела?": "Hallo! Wie geht's?", "👋 Рад(а) тебя видеть!": "👋 Schön, dich zu sehen!", "Спасибо, отлично! А у тебя?": "Danke, super! Und dir?", "Пожалуйста!": "Gern geschehen!", "Всегда пожалуйста 😊": "Immer gern 😊", "Не за что!": "Kein Problem!", "Отлично, спасибо!": "Super, danke!", "Нормально, а у тебя?": "Gut, und dir?", "Всё по плану 🙂": "Alles nach Plan 🙂", "Встретимся в центре?": "Treffen wir uns im Zentrum?", "Скину точку на карте": "Ich sende dir einen Standort", "У меня на работе": "Bei mir auf der Arbeit", "Давай у метро": "Treffen wir uns an der Metro", "Давай в 18:00!": "Machen wir 18:00!", "Давай сегодня вечером": "Machen wir heute Abend", "Завтра удобнее?": "Ist morgen besser?", "Где встретимся?": "Wo treffen wir uns?", "В 19:00 подойдёт?": "Passt 19:00?", "Могу в 12:00": "Ich kann um 12:00", "Сейчас удобно?": "Passt es jetzt?", "Давай ближе к вечеру": "Lieber später am Abend", "Сколько стоит?": "Wie viel kostet es?", "Есть в наличии?": "Ist es verfügbar?", "Оформи заказ": "Bestellung aufgeben", "Скинь ссылку": "Schick den Link", "Да, конечно!": "Ja, natürlich!", "Нет, пока 🙈": "Nein, noch nicht 🙈", "Сейчас уточню и напишу": "Ich prüfe es und schreibe dir", "Хороший вопрос 🙂": "Gute Frage 🙂", "Договорились! 👍": "Abgemacht! 👍", "Отлично!": "Super!", "Начинаем 🚀": "Los geht's 🚀",
     "Горячее": "Heiß", "Новые": "Neu", "Топ": "Top", "Растущие": "Aufsteigend", "Главная": "Start", "Страницы": "Seiten", "Сообщения": "Nachrichten", "Уведомления": "Benachrichtigungen", "Профиль": "Profil",
@@ -2250,9 +2253,9 @@ function TapApp() {
   function submitPost(e) {
     e.preventDefault();
     const bodyText = stripHtml(composer.body).replace(/\s+/g, " ").trim();
-    if (!bodyText && !composer.mediaUrl) return;
-    const derivedTitle = (bodyText.slice(0, 120)) || "Новый пост";
-    const payload = { title: derivedTitle, body: composer.body.trim() };
+    const title = composer.title.trim();
+    if (!title && !bodyText && !composer.mediaUrl) return;
+    const payload = { title, body: composer.body.trim() };
     if (composer.mediaUrl) {
       payload.media_url = composer.mediaUrl;
       payload.media_type = composer.mediaType;
@@ -2485,6 +2488,9 @@ function TapApp() {
           localPost.id = r.post.id;
           localPost.py = r.post.y;
           localPost.px = r.post.x;
+          localPost.authorId = r.post.authorId;
+          localPost.author = r.post.author;
+          localPost.avatarInitials = r.post.avatarInitials;
         } else {
           const payload = { title, body: bodyHtml, x: boardPostXY.x, y: boardPostXY.y };
           if (mediaUrl) { payload.media_url = mediaUrl; payload.media_type = mediaType; }
@@ -3534,7 +3540,7 @@ function TapApp() {
             </div>
             {repostBanner}
             <div className="t-card-text-body">
-              <div className="t-card-text-title">{renderHashtags(p.title, (tag) => { setQuery(tag); saveRecentSearch(tag); })}</div>
+              {p.title && <div className="t-card-text-title">{renderHashtags(p.title, (tag) => { setQuery(tag); saveRecentSearch(tag); })}</div>}
               {p.body && <div className={"t-card-text-preview" + (htmlLike(p.body) ? " html" : "")} dangerouslySetInnerHTML={{ __html: bodyContent(p.body) }} />}
             </div>
             {actions}
@@ -3557,7 +3563,7 @@ function TapApp() {
             </div>
             <div className="t-card-footer">
               {repostBanner}
-              <div className="t-card-title">{renderHashtags(p.title, (tag) => { setQuery(tag); saveRecentSearch(tag); })}</div>
+              {p.title && <div className="t-card-title">{renderHashtags(p.title, (tag) => { setQuery(tag); saveRecentSearch(tag); })}</div>}
               {actions}
             </div>
           </React.Fragment>
@@ -4816,6 +4822,13 @@ function TapApp() {
               {composerOpen && (
                 <form className="t-composer" onSubmit={submitPost}>
                   <div className="t-composer-head">Новый пост</div>
+                  <input
+                    type="text"
+                    placeholder="Заголовок (необязательно)"
+                    value={composer.title}
+                    onChange={(e) => setComposer((c) => ({ ...c, title: e.target.value }))}
+                    maxLength={160}
+                  />
                   {window.Quill ? (
                     <div className="t-quill-editor" ref={composerEditorRef} />
                   ) : (
@@ -4841,7 +4854,7 @@ function TapApp() {
 
                   <div className="t-composer-actions">
                     <button type="button" className="t-btn-ghost" onClick={() => setComposerOpen(false)}>Отмена</button>
-                    <button type="submit" className="t-btn-solid" disabled={!stripHtml(composer.body).trim() && !composer.mediaUrl}>Опубликовать</button>
+                    <button type="submit" className="t-btn-solid" disabled={!composer.title.trim() && !stripHtml(composer.body).trim() && !composer.mediaUrl}>Опубликовать</button>
                   </div>
                 </form>
               )}
@@ -6204,7 +6217,7 @@ function TapApp() {
                 <span className="t-card-repost-orig" onClick={() => openProfile(openPost.authorId)}>от {openPost.origAuthorHandle || openPost.origAuthorName}</span>
               </div>
             )}
-            <h3 className="t-modal-title">{openPost.title}</h3>
+            {openPost.title && <h3 className="t-modal-title">{openPost.title}</h3>}
             {openPost.media && (
               <div className="t-modal-media" style={{ cursor: "zoom-in" }} onClick={(e) => { e.stopPropagation(); openMediaViewer([{ url: openPost.media.url, type: openPost.media.type === "video" ? "video" : "image", title: openPost.title, text: openPost.body, author: openPost.author, authorHandle: openPost.authorHandle, authorId: openPost.authorId, avatarInitials: openPost.avatarInitials }], 0); }}>
                 {openPost.media.type === "video" ? (

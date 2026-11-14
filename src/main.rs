@@ -1,12 +1,13 @@
 mod api;
 mod auth;
+mod boards;
 mod db;
 mod handlers;
 mod mail;
 mod models;
 
 use axum::http::header::{CACHE_CONTROL, HeaderValue};
-use axum::routing::{get, post};
+use axum::routing::{delete, get, post};
 use axum::Router;
 use axum::extract::DefaultBodyLimit;
 use tower_http::services::ServeDir;
@@ -41,11 +42,28 @@ async fn main() -> anyhow::Result<()> {
         .route("/api/posts/:id/comments", post(api::add_comment))
         .route("/api/comments/:id/like", post(api::like_comment))
         .route("/api/posts/:id/story", post(api::add_story))
+        .route("/api/boards", get(boards::list).post(boards::create))
+        .route("/api/boards/:id", get(boards::get))
+        .route("/api/boards/:id/posts", post(boards::create_post))
+        .route("/api/boards/:id/invite", post(boards::invite))
+        .route(
+            "/api/boards/:id/members/:member_id",
+            delete(boards::remove_member),
+        )
+        .route(
+            "/api/boards/:id/posts/:post_id",
+            delete(boards::remove_post).put(boards::move_post),
+        )
+        .route(
+            "/api/boards/:id/keys",
+            get(boards::get_key).post(boards::upsert_key),
+        )
         .route("/api/pages", post(api::create_page))
         .route("/api/pages/:id", get(api::get_page))
         .route("/api/pages/:id/posts", post(api::create_page_post))
         .route("/api/pages/:id/join", post(api::join_community))
         .route("/api/users/:id/follow", post(api::toggle_follow))
+        .route("/api/users/:id/following", get(boards::list_following))
         .route("/api/users/:id/block", post(api::toggle_block))
         .route("/api/blocks", get(api::list_blocks))
         .route("/api/users", get(api::list_users))

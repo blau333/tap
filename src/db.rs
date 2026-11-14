@@ -1,7 +1,6 @@
 use sqlx::mysql::{MySqlPool, MySqlPoolOptions};
 
-/// Connects to MariaDB/MySQL, applies the schema, and seeds demo data
-/// on first run (when the `posts` table is empty).
+/// Connects to MariaDB/MySQL and applies the schema and migrations.
 pub async fn init(database_url: &str) -> anyhow::Result<MySqlPool> {
     let pool = MySqlPoolOptions::new()
         .max_connections(10)
@@ -13,22 +12,11 @@ pub async fn init(database_url: &str) -> anyhow::Result<MySqlPool> {
     }
 
     migrate(&pool).await?;
-
-    seed_page_posts(&pool).await?;
+    seed_developer_account(&pool).await?;
 
     sqlx::query("DELETE FROM sessions WHERE expires_at < NOW()")
         .execute(&pool)
         .await?;
-
-    let post_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM posts")
-        .fetch_one(&pool)
-        .await?;
-
-    if post_count == 0 {
-        seed(&pool).await?;
-    }
-
-    seed_stories(&pool).await?;
 
     Ok(pool)
 }
@@ -218,6 +206,56 @@ CREATE TABLE IF NOT EXISTS post_stories (
     CONSTRAINT fk_stories_post FOREIGN KEY (post_id) REFERENCES posts(id) ON DELETE CASCADE,
     CONSTRAINT fk_stories_author FOREIGN KEY (author_user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS boards (
+    id              BIGINT PRIMARY KEY AUTO_INCREMENT,
+    owner_user_id   BIGINT NOT NULL,
+    icon_emoji      VARCHAR(8) NOT NULL DEFAULT '',
+    name_cipher     TEXT NOT NULL,
+    desc_cipher     TEXT NOT NULL,
+    is_public       TINYINT NOT NULL DEFAULT 0,
+    created_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_boards_owner FOREIGN KEY (owner_user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS board_members (
+    board_id    BIGINT NOT NULL,
+    user_id     BIGINT NOT NULL,
+    can_post    TINYINT NOT NULL DEFAULT 1,
+    created_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (board_id, user_id),
+    CONSTRAINT fk_board_members_board FOREIGN KEY (board_id) REFERENCES boards(id) ON DELETE CASCADE,
+    CONSTRAINT fk_board_members_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS board_posts (
+    id              BIGINT PRIMARY KEY AUTO_INCREMENT,
+    board_id        BIGINT NOT NULL,
+    author_user_id  BIGINT NOT NULL,
+    title           TEXT NOT NULL,
+    body            TEXT NOT NULL,
+    media_url       MEDIUMTEXT NOT NULL,
+    media_type      VARCHAR(8) NOT NULL DEFAULT '',
+    x               DOUBLE NOT NULL DEFAULT 0,
+    y               DOUBLE NOT NULL DEFAULT 0,
+    created_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_board_posts_board FOREIGN KEY (board_id) REFERENCES boards(id) ON DELETE CASCADE,
+    CONSTRAINT fk_board_posts_author FOREIGN KEY (author_user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS board_keys (
+    board_id        BIGINT NOT NULL,
+    user_id         BIGINT NOT NULL,
+    sender_user_id  BIGINT NOT NULL,
+    wrapped_key     TEXT NOT NULL,
+    wrap_nonce      VARCHAR(128) NOT NULL,
+    wrap_eph        TEXT NOT NULL,
+    updated_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (board_id, user_id),
+    CONSTRAINT fk_board_keys_board FOREIGN KEY (board_id) REFERENCES boards(id) ON DELETE CASCADE,
+    CONSTRAINT fk_board_keys_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    CONSTRAINT fk_board_keys_sender FOREIGN KEY (sender_user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 "#;
 
 async fn ensure_column(
@@ -391,14 +429,6 @@ async fn migrate(pool: &MySqlPool) -> anyhow::Result<()> {
         .execute(pool)
         .await?;
 
-    // Seed demo follow relationships when the table is empty (existing DBs).
-    let follows_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM follows")
-        .fetch_one(pool)
-        .await?;
-    if follows_count == 0 {
-        seed_follows(pool).await?;
-    }
-
     // Comments become first-class, likeable units: a like counter, an optional
     // parent (for threaded replies) and a dedicated like table.
     ensure_column(pool, "comments", "likes", "likes INT NOT NULL DEFAULT 0 AFTER body").await?;
@@ -420,6 +450,7 @@ async fn migrate(pool: &MySqlPool) -> anyhow::Result<()> {
 
 /// Creates the demo follow graph: Marina follows four people,
 /// and six people follow Marina back.
+#[allow(dead_code)]
 async fn seed_follows(pool: &MySqlPool) -> anyhow::Result<()> {
     let pairs = [
         ("@marina.k", "@olalis"),
@@ -449,6 +480,7 @@ async fn seed_follows(pool: &MySqlPool) -> anyhow::Result<()> {
 /// Fills each page with a few posts so the "Страницы" view is alive even on
 /// databases that were seeded before the pages feature existed. Runs on every
 /// boot but is idempotent: it does nothing once any post has a page_id.
+#[allow(dead_code)]
 async fn seed_page_posts(pool: &MySqlPool) -> anyhow::Result<()> {
     let existing: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM posts WHERE page_id IS NOT NULL")
         .fetch_one(pool)
@@ -514,6 +546,7 @@ async fn seed_page_posts(pool: &MySqlPool) -> anyhow::Result<()> {
 /// Attaches mini-story frames to existing posts that carry media, so every
 /// post card with an image/video gets a story sticker. Runs on every boot but
 /// is idempotent: it does nothing once any story frame exists.
+#[allow(dead_code)]
 async fn seed_stories(pool: &MySqlPool) -> anyhow::Result<()> {
     let existing: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM post_stories")
         .fetch_one(pool)
@@ -575,9 +608,29 @@ async fn seed_stories(pool: &MySqlPool) -> anyhow::Result<()> {
     Ok(())
 }
 
-/// SHA-256 of "kolo123" — the shared password of all seeded demo accounts.
 const DEMO_PASSWORD_HASH: &str = "3411b3ee48daf3b99cd312b15e64bb75f2c6e2f85540050f6afedce857ee76ad";
 
+async fn seed_developer_account(pool: &MySqlPool) -> anyhow::Result<()> {
+    let exists: bool = sqlx::query_scalar(
+        "SELECT EXISTS(SELECT 1 FROM users WHERE email = 'developer@kolo.demo')",
+    )
+    .fetch_one(pool)
+    .await?;
+
+    if !exists {
+        sqlx::query(
+            "INSERT INTO users (name, email, handle, avatar_initials, bio, friends, password_hash, email_verified)
+             VALUES ('Developer', 'developer@kolo.demo', '@developer', 'DEV', 'Тестовый аккаунт разработчика.', 0, ?, 1)",
+        )
+        .bind(DEMO_PASSWORD_HASH)
+        .execute(pool)
+        .await?;
+    }
+
+    Ok(())
+}
+
+#[allow(dead_code)]
 async fn seed(pool: &MySqlPool) -> anyhow::Result<()> {
     let users = [
         ("Olga Lis", "olalis@kolo.demo", "@olalis", "OL", "Люблю дороги и хинкали.", 214),
