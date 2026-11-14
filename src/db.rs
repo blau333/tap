@@ -59,6 +59,39 @@ CREATE TABLE IF NOT EXISTS communities (
     interest    VARCHAR(32) NOT NULL DEFAULT ''
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+CREATE TABLE IF NOT EXISTS polls (
+    id          BIGINT PRIMARY KEY AUTO_INCREMENT,
+    author_id   BIGINT NOT NULL,
+    conversation_id BIGINT NULL DEFAULT NULL,
+    question    TEXT NULL,
+    multiple    TINYINT NOT NULL DEFAULT 0,
+    encrypted   TINYINT NOT NULL DEFAULT 0,
+    created_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    KEY idx_polls_conversation_id (conversation_id),
+    CONSTRAINT fk_polls_author FOREIGN KEY (author_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS poll_options (
+    id          BIGINT PRIMARY KEY AUTO_INCREMENT,
+    poll_id     BIGINT NOT NULL,
+    position    SMALLINT NOT NULL,
+    text        TEXT NOT NULL,
+    KEY idx_poll_options_poll_position (poll_id, position),
+    CONSTRAINT fk_poll_options_poll FOREIGN KEY (poll_id) REFERENCES polls(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS poll_votes (
+    poll_id     BIGINT NOT NULL,
+    option_id   BIGINT NOT NULL,
+    user_id     BIGINT NOT NULL,
+    created_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (option_id, user_id),
+    KEY idx_poll_votes_poll_user (poll_id, user_id),
+    CONSTRAINT fk_poll_votes_poll FOREIGN KEY (poll_id) REFERENCES polls(id) ON DELETE CASCADE,
+    CONSTRAINT fk_poll_votes_option FOREIGN KEY (option_id) REFERENCES poll_options(id) ON DELETE CASCADE,
+    CONSTRAINT fk_poll_votes_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 CREATE TABLE IF NOT EXISTS posts (
     id          BIGINT PRIMARY KEY AUTO_INCREMENT,
     user_id     BIGINT NOT NULL,
@@ -75,8 +108,10 @@ CREATE TABLE IF NOT EXISTS posts (
     time_label  VARCHAR(32) NOT NULL DEFAULT '',
     author_sub  VARCHAR(160) NOT NULL DEFAULT '',
     repost_of_id BIGINT NULL DEFAULT NULL,
+    poll_id     BIGINT NULL DEFAULT NULL,
     created_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     FULLTEXT KEY ft_posts_title_body (title, body),
+    KEY idx_posts_poll_id (poll_id),
     CONSTRAINT fk_posts_user FOREIGN KEY (user_id) REFERENCES users(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
@@ -113,9 +148,22 @@ CREATE TABLE IF NOT EXISTS messages (
     reaction        VARCHAR(16) NOT NULL DEFAULT '',
     media_type      VARCHAR(64) NOT NULL DEFAULT '',
     media_url       TEXT NOT NULL DEFAULT '',
+    poll_id         BIGINT NULL DEFAULT NULL,
     created_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    KEY idx_messages_poll_id (poll_id),
     CONSTRAINT fk_messages_conversation FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE,
     CONSTRAINT fk_messages_sender FOREIGN KEY (sender_user_id) REFERENCES users(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS message_keys (
+    message_id  BIGINT NOT NULL,
+    user_id     BIGINT NOT NULL,
+    wrapped_key TEXT NOT NULL,
+    wrap_nonce  VARCHAR(32) NOT NULL,
+    wrap_eph    TEXT NOT NULL,
+    PRIMARY KEY (message_id, user_id),
+    CONSTRAINT fk_message_keys_message FOREIGN KEY (message_id) REFERENCES messages(id) ON DELETE CASCADE,
+    CONSTRAINT fk_message_keys_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS user_keys (
@@ -340,6 +388,7 @@ async fn migrate(pool: &MySqlPool) -> anyhow::Result<()> {
     ensure_column(pool, "communities", "owner_user_id", "owner_user_id BIGINT NOT NULL DEFAULT 0 AFTER id").await?;
     ensure_column(pool, "posts", "page_id", "page_id BIGINT NULL DEFAULT NULL AFTER category").await?;
     ensure_column(pool, "posts", "repost_of_id", "repost_of_id BIGINT NULL DEFAULT NULL AFTER page_id").await?;
+    ensure_column(pool, "posts", "poll_id", "poll_id BIGINT NULL DEFAULT NULL AFTER repost_of_id").await?;
 
     // Interests: page topics + the user's chosen interests (comma-joined).
     ensure_column(pool, "communities", "interest", "interest VARCHAR(32) NOT NULL DEFAULT '' AFTER icon_emoji").await?;
@@ -387,6 +436,7 @@ async fn migrate(pool: &MySqlPool) -> anyhow::Result<()> {
     ensure_column(pool, "messages", "nonce", "nonce VARCHAR(32) NOT NULL DEFAULT '' AFTER encrypted").await?;
     ensure_column(pool, "messages", "media_type", "media_type VARCHAR(64) NOT NULL DEFAULT '' AFTER reaction").await?;
     ensure_column(pool, "messages", "media_url", "media_url TEXT NOT NULL DEFAULT '' AFTER media_type").await?;
+    ensure_column(pool, "messages", "poll_id", "poll_id BIGINT NULL DEFAULT NULL AFTER media_url").await?;
     ensure_column(pool, "conversations", "last_nonce", "last_nonce VARCHAR(32) NOT NULL DEFAULT '' AFTER last_message").await?;
 
     // Widen media_type so it can hold full MIME strings ("audio/webm;codecs=opus").

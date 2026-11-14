@@ -20,6 +20,7 @@ COPY babel.config.json ./
 RUN ./node_modules/.bin/babel client-src/tap-app.jsx --out-file /tmp/tap-app.js \
  && ./node_modules/.bin/terser /tmp/tap-app.js -c passes=2 -m -o static/tap-app.js \
  && ./node_modules/.bin/terser client-src/e2ee.js -c passes=2 -m -o static/e2ee.js \
+ && ./node_modules/.bin/terser client-src/tap-poll.js -c passes=2 -m -o static/tap-poll.js \
  && ./node_modules/.bin/terser client-src/webauthn.js -c passes=2 -m -o static/webauthn.min.js \
  && rm -f static/tap-app.jsx static/webauthn.js
 

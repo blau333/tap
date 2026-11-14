@@ -146,6 +146,7 @@ struct PostApiRow {
     author_handle: String,
     avatar_initials: String,
     repost_of_id: Option<i64>,
+    poll_id: Option<i64>,
     orig_author_name: Option<String>,
     orig_author_handle: Option<String>,
 }
@@ -213,6 +214,7 @@ struct MessageApiRow {
     nonce: String,
     media_url: String,
     media_type: String,
+    poll_id: Option<i64>,
     created_at: NaiveDateTime,
 }
 
@@ -247,7 +249,7 @@ async fn build_posts(
         (Some(pid), None) => sqlx::query_as::<_, PostApiRow>(
             "SELECT p.id, p.user_id, p.title, p.body, p.media_url, p.media_type, p.likes AS score,
                     CAST(p.created_at AS DATETIME) AS created_at, u.name AS author_name, u.handle AS author_handle, u.avatar_initials,
-                    p.repost_of_id, ou.name AS orig_author_name, ou.handle AS orig_author_handle
+                    p.repost_of_id, p.poll_id, ou.name AS orig_author_name, ou.handle AS orig_author_handle
              FROM posts p JOIN users u ON u.id = p.user_id
              LEFT JOIN posts o ON o.id = p.repost_of_id
              LEFT JOIN users ou ON ou.id = o.user_id
@@ -261,7 +263,7 @@ async fn build_posts(
         (None, Some(uid)) => sqlx::query_as::<_, PostApiRow>(
             "SELECT p.id, p.user_id, p.title, p.body, p.media_url, p.media_type, p.likes AS score,
                     CAST(p.created_at AS DATETIME) AS created_at, u.name AS author_name, u.handle AS author_handle, u.avatar_initials,
-                    p.repost_of_id, ou.name AS orig_author_name, ou.handle AS orig_author_handle
+                    p.repost_of_id, p.poll_id, ou.name AS orig_author_name, ou.handle AS orig_author_handle
              FROM posts p JOIN users u ON u.id = p.user_id
              LEFT JOIN posts o ON o.id = p.repost_of_id
              LEFT JOIN users ou ON ou.id = o.user_id
@@ -275,7 +277,7 @@ async fn build_posts(
         (None, None) => sqlx::query_as::<_, PostApiRow>(
             "SELECT p.id, p.user_id, p.title, p.body, p.media_url, p.media_type, p.likes AS score,
                     CAST(p.created_at AS DATETIME) AS created_at, u.name AS author_name, u.handle AS author_handle, u.avatar_initials,
-                    p.repost_of_id, ou.name AS orig_author_name, ou.handle AS orig_author_handle
+                    p.repost_of_id, p.poll_id, ou.name AS orig_author_name, ou.handle AS orig_author_handle
              FROM posts p JOIN users u ON u.id = p.user_id
              LEFT JOIN posts o ON o.id = p.repost_of_id
              LEFT JOIN users ou ON ou.id = o.user_id
@@ -434,6 +436,7 @@ async fn enrich_posts(
             "reposts": repost_counts.get(&r.id).copied().unwrap_or(0),
             "reposted": my_reposts.contains(&r.id),
             "repostOf": r.repost_of_id,
+            "pollId": r.poll_id,
             "origAuthorName": r.orig_author_name.as_deref().unwrap_or(""),
             "origAuthorHandle": r.orig_author_handle.as_deref().unwrap_or(""),
         }));
@@ -527,7 +530,7 @@ async fn build_conversation(
     .map_err(err)?;
 
     let msgs = sqlx::query_as::<_, MessageApiRow>(
-        "SELECT id, sender_user_id, body, reaction, encrypted, nonce, media_url, media_type,
+        "SELECT id, sender_user_id, body, reaction, encrypted, nonce, media_url, media_type, poll_id,
                 CAST(created_at AS DATETIME) AS created_at
          FROM messages WHERE conversation_id = ?
          ORDER BY created_at ASC, id ASC",
@@ -536,6 +539,23 @@ async fn build_conversation(
     .fetch_all(pool)
     .await
     .map_err(err)?;
+
+    let message_keys: HashMap<i64, Value> = sqlx::query_as::<_, (i64, String, String, String)>(
+        "SELECT k.message_id, k.wrapped_key, k.wrap_nonce, k.wrap_eph
+         FROM message_keys k
+         JOIN messages m ON m.id = k.message_id
+         WHERE k.user_id = ? AND m.conversation_id = ?",
+    )
+    .bind(user_id)
+    .bind(r.id)
+    .fetch_all(pool)
+    .await
+    .map_err(err)?
+    .into_iter()
+    .map(|(message_id, wrapped, nonce, eph_pub)| {
+        (message_id, json!({ "wrapped": wrapped, "nonce": nonce, "ephPub": eph_pub }))
+    })
+    .collect();
 
     let messages: Vec<Value> = msgs
         .into_iter()
@@ -547,6 +567,8 @@ async fn build_conversation(
                 "time": time_label(m.created_at),
                 "encrypted": m.encrypted == 1,
                 "nonce": m.nonce,
+                "pollId": m.poll_id,
+                "msgKey": message_keys.get(&m.id),
                 "reaction": if m.reaction.is_empty() {
                     Value::Null
                 } else {
@@ -683,6 +705,7 @@ pub async fn bootstrap(State(pool): State<MySqlPool>, user: ApiUser) -> ApiResul
 
 #[derive(Deserialize)]
 pub struct CreatePostPayload {
+    #[serde(default)]
     pub title: String,
     #[serde(default)]
     pub body: String,
@@ -690,6 +713,8 @@ pub struct CreatePostPayload {
     pub media_url: String,
     #[serde(default)]
     pub media_type: String,
+    #[serde(default)]
+    pub poll: Option<crate::polls::PollDraft>,
 }
 
 pub async fn create_post(
@@ -700,12 +725,21 @@ pub async fn create_post(
     let title = payload.title.trim().to_string();
     let body = payload.body.trim().to_string();
 
-    if title.is_empty() && body.is_empty() && payload.media_url.is_empty() {
+    if title.is_empty()
+        && body.is_empty()
+        && payload.media_url.is_empty()
+        && payload.poll.is_none()
+    {
         return Err((StatusCode::BAD_REQUEST, "post body required".to_string()));
+    }
+
+    if let Some(poll) = &payload.poll {
+        crate::polls::validate_draft(poll)?;
     }
 
     let (author, initials) = load_author(&pool, user.user_id()).await?;
 
+    let mut tx = pool.begin().await.map_err(err)?;
     let result = sqlx::query(
         "INSERT INTO posts (user_id, category, accent, accent2, icon_key, title, body, media_url, media_type, likes, comments, time_label, author_sub)
          VALUES (?, 'Пост', '#E8B04B', '#C0603A', 'community', ?, ?, ?, ?, 1, 0, 'только что', 'опубликовал(а) в tap')",
@@ -715,11 +749,33 @@ pub async fn create_post(
     .bind(&body)
     .bind(&payload.media_url)
     .bind(&payload.media_type)
-    .execute(&pool)
+    .execute(&mut *tx)
     .await
     .map_err(err)?;
 
     let new_id = result.last_insert_id() as i64;
+    let poll_id = if let Some(poll) = &payload.poll {
+        let poll_id = crate::polls::insert_poll(
+            &mut tx,
+            user.user_id(),
+            None,
+            Some(poll.question.trim()),
+            poll.multiple,
+            false,
+            &poll.options,
+        )
+        .await?;
+        sqlx::query("UPDATE posts SET poll_id = ? WHERE id = ?")
+            .bind(poll_id)
+            .bind(new_id)
+            .execute(&mut *tx)
+            .await
+            .map_err(err)?;
+        Some(poll_id)
+    } else {
+        None
+    };
+    tx.commit().await.map_err(err)?;
 
     // The author's first post auto-gets an upvote from its author.
     sqlx::query(
@@ -756,6 +812,7 @@ pub async fn create_post(
             "createdAt": now.and_utc().timestamp(),
             "title": title,
             "body": body,
+            "pollId": poll_id,
             "media": if payload.media_type.is_empty() {
                 Value::Null
             } else {
@@ -1457,6 +1514,14 @@ pub async fn join_community(
 }
 
 #[derive(Deserialize)]
+pub struct MessageKeyPayload {
+    pub user_id: i64,
+    pub wrapped_key: String,
+    pub wrap_nonce: String,
+    pub wrap_eph: String,
+}
+
+#[derive(Deserialize)]
 pub struct MessagePayload {
     pub text: Option<String>,
     #[serde(default)]
@@ -1467,6 +1532,10 @@ pub struct MessagePayload {
     pub media_url: String,
     #[serde(default)]
     pub media_type: String,
+    #[serde(default)]
+    pub message_keys: Vec<MessageKeyPayload>,
+    #[serde(default)]
+    pub poll: Option<crate::polls::ChatPollMeta>,
 }
 
 pub async fn send_message(
@@ -1475,38 +1544,64 @@ pub async fn send_message(
     Path(conversation_id): Path<i64>,
     Json(payload): Json<MessagePayload>,
 ) -> ApiResult {
-    let (body, encrypted, nonce, media_url, media_type) = match payload {
-        // E2EE message: body is base64 AES-GCM ciphertext (text or audio),
-        // the plaintext never reaches the server.
-        MessagePayload {
-            encrypted: true,
-            cipher_text: Some(c),
-            nonce: Some(n),
-            media_type,
-            ..
-        } if !c.trim().is_empty() && !n.trim().is_empty() => {
-            (c.trim().to_string(), 1, n.trim().to_string(), String::new(), media_type.trim().to_string())
+    let MessagePayload {
+        text,
+        encrypted: is_encrypted,
+        cipher_text,
+        nonce: supplied_nonce,
+        media_url: supplied_media_url,
+        media_type: supplied_media_type,
+        message_keys,
+        poll,
+    } = payload;
+    let supplied_media_type = supplied_media_type.trim().to_string();
+    let (body, encrypted, nonce, media_url, media_type) = if is_encrypted {
+        let (Some(cipher), Some(nonce)) = (cipher_text, supplied_nonce) else {
+            return Err((
+                StatusCode::BAD_REQUEST,
+                "invalid encrypted message".to_string(),
+            ));
+        };
+        if cipher.trim().is_empty() || nonce.trim().is_empty() {
+            return Err((
+                StatusCode::BAD_REQUEST,
+                "invalid encrypted message".to_string(),
+            ));
         }
-        // Voice message: audio lives in media_url, body is a friendly label.
-        MessagePayload { media_url: m, media_type, text, .. } if !m.trim().is_empty() => {
-            let label = text.map(|t| t.trim().to_string()).filter(|t| !t.is_empty())
-                .unwrap_or_else(|| "🎤 Голосовое сообщение".to_string());
-            let mt = media_type.trim().to_string();
-            (label, 0, String::new(), m.trim().to_string(), if mt.is_empty() { "audio".to_string() } else { mt })
+        (
+            cipher.trim().to_string(),
+            1,
+            nonce.trim().to_string(),
+            String::new(),
+            supplied_media_type,
+        )
+    } else if !supplied_media_url.trim().is_empty() {
+        let label = text
+            .map(|t| t.trim().to_string())
+            .filter(|t| !t.is_empty())
+            .unwrap_or_else(|| "🎤 Голосовое сообщение".to_string());
+        (
+            label,
+            0,
+            String::new(),
+            supplied_media_url.trim().to_string(),
+            if supplied_media_type.is_empty() {
+                "audio".to_string()
+            } else {
+                supplied_media_type
+            },
+        )
+    } else if let Some(text) = text {
+        let text = text.trim().to_string();
+        if text.is_empty() {
+            return Err((StatusCode::BAD_REQUEST, "text required".to_string()));
         }
-        // Legacy plaintext message (also used when the peer has no identity key yet).
-        MessagePayload {
-            encrypted: false,
-            text: Some(t),
-            ..
-        } => {
-            let t = t.trim().to_string();
-            if t.is_empty() {
-                return Err((StatusCode::BAD_REQUEST, "text required".to_string()));
-            }
-            (t, 0, String::new(), String::new(), String::new())
-        }
-        _ => return Err((StatusCode::BAD_REQUEST, "invalid message payload".to_string())),
+        (text, 0, String::new(), String::new(), String::new())
+    } else {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            "invalid message payload".to_string(),
+        ));
     };
 
     let participants: Option<(i64, i64)> = sqlx::query_as::<_, (i64, i64)>(
@@ -1532,19 +1627,81 @@ pub async fn send_message(
             OR (blocker_user_id = ? AND blocked_user_id = ?)",
     )
     .bind(user.user_id())
-    .bind(if owner_id == user.user_id() { peer_id } else { owner_id })
-    .bind(if owner_id == user.user_id() { peer_id } else { owner_id })
+    .bind(if owner_id == user.user_id() {
+        peer_id
+    } else {
+        owner_id
+    })
+    .bind(if owner_id == user.user_id() {
+        peer_id
+    } else {
+        owner_id
+    })
     .bind(user.user_id())
     .fetch_one(&pool)
     .await
     .map_err(err)?;
     if block_count > 0 {
-        return Err((StatusCode::FORBIDDEN, "сообщение не отправлено: пользователь заблокирован".to_string()));
+        return Err((
+            StatusCode::FORBIDDEN,
+            "сообщение не отправлено: пользователь заблокирован".to_string(),
+        ));
     }
 
+    if let Some(poll) = &poll {
+        if encrypted != 1 || !media_url.is_empty() || !media_type.is_empty() {
+            return Err((
+                StatusCode::BAD_REQUEST,
+                "chat polls must be end-to-end encrypted".to_string(),
+            ));
+        }
+        if !(2..=6).contains(&poll.option_count) || message_keys.len() != 2 {
+            return Err((
+                StatusCode::BAD_REQUEST,
+                "invalid encrypted poll".to_string(),
+            ));
+        }
+    }
+
+    if !message_keys.is_empty() {
+        let expected = HashSet::from([owner_id, peer_id]);
+        let supplied: HashSet<i64> = message_keys.iter().map(|key| key.user_id).collect();
+        if supplied != expected
+            || supplied.len() != message_keys.len()
+            || message_keys.iter().any(|key| {
+                key.wrapped_key.is_empty()
+                    || key.wrapped_key.len() > 2048
+                    || key.wrap_nonce.is_empty()
+                    || key.wrap_nonce.len() > 128
+                    || key.wrap_eph.is_empty()
+                    || key.wrap_eph.len() > 2048
+            })
+        {
+            return Err((StatusCode::BAD_REQUEST, "invalid message keys".to_string()));
+        }
+    }
+
+    let mut tx = pool.begin().await.map_err(err)?;
+    let poll_id = if let Some(poll) = &poll {
+        let options = vec![String::new(); poll.option_count];
+        Some(
+            crate::polls::insert_poll(
+                &mut tx,
+                user.user_id(),
+                Some(conversation_id),
+                None,
+                poll.multiple,
+                true,
+                &options,
+            )
+            .await?,
+        )
+    } else {
+        None
+    };
     let result = sqlx::query(
-        "INSERT INTO messages (conversation_id, sender_user_id, body, encrypted, nonce, media_type, media_url)
-         VALUES (?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO messages (conversation_id, sender_user_id, body, encrypted, nonce, media_type, media_url, poll_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
     )
     .bind(conversation_id)
     .bind(user.user_id())
@@ -1553,9 +1710,27 @@ pub async fn send_message(
     .bind(&nonce)
     .bind(&media_type)
     .bind(&media_url)
-    .execute(&pool)
+    .bind(poll_id)
+    .execute(&mut *tx)
     .await
     .map_err(err)?;
+    let message_id = result.last_insert_id() as i64;
+
+    for key in &message_keys {
+        sqlx::query(
+            "INSERT INTO message_keys (message_id, user_id, wrapped_key, wrap_nonce, wrap_eph)
+             VALUES (?, ?, ?, ?, ?)",
+        )
+        .bind(message_id)
+        .bind(key.user_id)
+        .bind(&key.wrapped_key)
+        .bind(&key.wrap_nonce)
+        .bind(&key.wrap_eph)
+        .execute(&mut *tx)
+        .await
+        .map_err(err)?;
+    }
+    tx.commit().await.map_err(err)?;
 
     let i_am_owner = owner_id == user.user_id();
     sqlx::query(
@@ -1582,6 +1757,12 @@ pub async fn send_message(
             "time": "только что",
             "encrypted": encrypted == 1,
             "nonce": nonce,
+            "pollId": poll_id,
+            "msgKey": message_keys.iter().find(|key| key.user_id == user.user_id()).map(|key| json!({
+                "wrapped": key.wrapped_key,
+                "nonce": key.wrap_nonce,
+                "ephPub": key.wrap_eph,
+            })),
             "reaction": Value::Null,
             "media": if media_type.is_empty() && media_url.is_empty() {
                 Value::Null
@@ -1725,10 +1906,10 @@ pub async fn search(
             .collect();
 
         let post_rows = if bt.is_empty() {
-            sqlx::query_as::<_, (i64, i64, String, String, String, String, i64, NaiveDateTime, String, String, String, Option<i64>, Option<String>, Option<String>, f64)>(
+            sqlx::query_as::<_, (i64, i64, String, String, String, String, i64, NaiveDateTime, String, String, String, Option<i64>, Option<i64>, Option<String>, Option<String>, f64)>(
                 "SELECT p.id, p.user_id, p.title, p.body, p.media_url, p.media_type, p.likes AS score,
                         CAST(p.created_at AS DATETIME) AS created_at, u.name AS author_name,
-                        u.handle AS author_handle, u.avatar_initials, p.repost_of_id,
+                        u.handle AS author_handle, u.avatar_initials, p.repost_of_id, p.poll_id,
                         ou.name AS orig_author_name, ou.handle AS orig_author_handle, 0 AS rel
                  FROM posts p JOIN users u ON u.id = p.user_id
                  LEFT JOIN posts o ON o.id = p.repost_of_id
@@ -1745,10 +1926,10 @@ pub async fn search(
             .await
             .map_err(err)?
         } else {
-            sqlx::query_as::<_, (i64, i64, String, String, String, String, i64, NaiveDateTime, String, String, String, Option<i64>, Option<String>, Option<String>, f64)>(
+            sqlx::query_as::<_, (i64, i64, String, String, String, String, i64, NaiveDateTime, String, String, String, Option<i64>, Option<i64>, Option<String>, Option<String>, f64)>(
                 "SELECT p.id, p.user_id, p.title, p.body, p.media_url, p.media_type, p.likes AS score,
                         CAST(p.created_at AS DATETIME) AS created_at, u.name AS author_name,
-                        u.handle AS author_handle, u.avatar_initials, p.repost_of_id,
+                        u.handle AS author_handle, u.avatar_initials, p.repost_of_id, p.poll_id,
                         ou.name AS orig_author_name, ou.handle AS orig_author_handle,
                         MATCH(p.title, p.body) AGAINST (? IN BOOLEAN MODE) AS rel
                  FROM posts p JOIN users u ON u.id = p.user_id
@@ -1772,8 +1953,8 @@ pub async fn search(
 
         let rows: Vec<PostApiRow> = post_rows
             .into_iter()
-            .map(|(id, user_id, title, body, media_url, media_type, score, created_at, author_name, author_handle, avatar_initials, repost_of_id, orig_author_name, orig_author_handle, _rel)| {
-                PostApiRow {
+            .map(
+                |(
                     id,
                     user_id,
                     title,
@@ -1786,10 +1967,30 @@ pub async fn search(
                     author_handle,
                     avatar_initials,
                     repost_of_id,
+                    poll_id,
                     orig_author_name,
                     orig_author_handle,
-                }
-            })
+                    _rel,
+                )| {
+                    PostApiRow {
+                        id,
+                        user_id,
+                        title,
+                        body,
+                        media_url,
+                        media_type,
+                        score,
+                        created_at,
+                        author_name,
+                        author_handle,
+                        avatar_initials,
+                        repost_of_id,
+                        poll_id,
+                        orig_author_name,
+                        orig_author_handle,
+                    }
+                },
+            )
             .collect();
 
         posts = enrich_posts(&pool, user.user_id(), rows).await?;

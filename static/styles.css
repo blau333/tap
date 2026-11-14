@@ -728,56 +728,17 @@ body{
   margin: 0;
 }
 
-.auth-chips{
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin-top: 6px;
-}
-
-.auth-chip{
-  --accent: #FF6B4A;
-  --accent2: #FFC857;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--text);
-  background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 22%, transparent), color-mix(in srgb, var(--accent2) 16%, transparent));
-  border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
-  padding: 8px 14px;
-  border-radius: var(--radius-pill);
-}
-
-.auth-chip svg{
-  width: 16px;
-  height: 16px;
-  color: var(--accent);
-  flex-shrink: 0;
-}
-
-.auth-stats{
-  display: flex;
-  gap: 36px;
-  margin-top: 18px;
-  padding-top: 22px;
-  border-top: 1px solid var(--card-border);
+.auth-invite{
   max-width: 460px;
-}
-
-.auth-stat-num{
-  margin: 0;
-  font-family: var(--font-display);
-  font-size: 24px;
-  font-weight: 600;
+  margin: 6px 0 0;
+  padding: 18px 20px;
+  border: 1px solid color-mix(in srgb, #FF6B4A 32%, transparent);
+  border-radius: 18px;
+  background: linear-gradient(135deg, rgba(255,107,74,0.12), rgba(255,200,87,0.08));
   color: var(--text);
-}
-
-.auth-stat-label{
-  margin: 2px 0 0;
-  font-size: 12px;
-  color: var(--text-faint);
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.45;
 }
 
 .auth-form-card{
@@ -962,9 +923,6 @@ body{
     border-left: none;
     border-top: 1px solid var(--card-border);
     padding: 36px 32px 56px;
-  }
-  .auth-stats{
-    max-width: none;
   }
 }
 

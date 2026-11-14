@@ -795,6 +795,8 @@ function TapApp() {
   const [visibleCount, setVisibleCount] = useState(BATCH_SIZE);
   const [composerOpen, setComposerOpen] = useState(false);
   const [composer, setComposer] = useState({ title: "", body: "", mediaUrl: "", mediaType: null, mediaName: "" });
+  const [composerPollOpen, setComposerPollOpen] = useState(false);
+  const postPollRef = useRef(null);
   const composerEditorRef = useRef(null);
   const quillRef = useRef(null);
   const [toasts, setToasts] = useState([]);
@@ -813,6 +815,11 @@ function TapApp() {
   const [editSaving, setEditSaving] = useState(false);
   const [profileTab, setProfileTab] = useState("posts");
   const [viewProfileTab, setViewProfileTab] = useState("posts");
+  const profileTabsRef = useRef(null);
+  const viewProfileTabsRef = useRef(null);
+  const profileTabButtonsRef = useRef({ own: {}, view: {} });
+  const [profileTabMarker, setProfileTabMarker] = useState({ left: 0, width: 0 });
+  const [viewProfileTabMarker, setViewProfileTabMarker] = useState({ left: 0, width: 0 });
   const editTimer = useRef(null);
 
   const [story, setStory] = useState(null);
@@ -865,6 +872,8 @@ function TapApp() {
 
   const [conversations, setConversations] = useState([]);
   const [openConvoId, setOpenConvoId] = useState(null);
+  const [chatPollOpen, setChatPollOpen] = useState(false);
+  const chatPollRef = useRef(null);
   // Unsent message drafts are kept per conversation (id → text) and persisted
   // to localStorage, so switching chats or reloading never loses typing.
   const [msgDrafts, setMsgDrafts] = useState({});
@@ -1752,6 +1761,26 @@ function TapApp() {
     }
   }
 
+  async function decodePollForChat(poll) {
+    if (!poll || !poll.encrypted) return poll;
+    if (!poll.msgKey || !poll.messageId || !me || !me.id) return { ...poll, question: "🔒 Не удалось расшифровать", options: [] };
+    const key = await msgKeyFor({ id: poll.messageId, msgKey: poll.msgKey }, me.id);
+    if (!key) return { ...poll, question: "🔒 Не удалось расшифровать", options: [] };
+    try {
+      const plain = await KoloE2EE.decryptMessage(key, poll.cipher, poll.nonce);
+      const content = plain ? JSON.parse(plain) : null;
+      if (!content || typeof content.question !== "string" || !Array.isArray(content.options)) throw new Error("Invalid encrypted poll");
+      return {
+        ...poll,
+        question: content.question,
+        multiple: !!content.multiple,
+        options: (poll.options || []).map((option, index) => ({ ...option, text: safeStr(content.options[index]) })),
+      };
+    } catch (e) {
+      return { ...poll, question: "🔒 Не удалось расшифровать", options: [] };
+    }
+  }
+
   async function decryptConvosList(convos, userId) {
     if (!convos) return [];
     if (!e2eeReady() || !userId) return convos.map((c) => ({ ...c, messages: c.messages || [], e2ee: false }));
@@ -1772,6 +1801,10 @@ function TapApp() {
           if (mk) {
             const plain = await KoloE2EE.decryptMessage(mk, m.text, m.nonce);
             if (plain == null) ok = false;
+            if (m.pollId) {
+              decrypted.push({ ...m, text: "", pollContent: plain });
+              continue;
+            }
             if (m.media && m.media.type && m.media.type.indexOf("audio") === 0) {
               decrypted.push({ ...m, text: plain != null ? plain : "🎤", audioCipher: m.text, decrypted: plain != null });
             } else {
@@ -2052,6 +2085,23 @@ function TapApp() {
   const openPost = findPost(openPostId);
   const savedPosts = posts.filter((p) => p.saved);
   const repostPosts = posts.filter((p) => p.isMine && p.repostOf);
+  useLayoutEffect(() => {
+    const updateMarker = (containerRef, buttons, selected, setMarker) => {
+      const container = containerRef.current;
+      const button = buttons.current[selected];
+      if (!container || !button) return;
+      const left = button.offsetLeft;
+      const width = button.offsetWidth;
+      setMarker((current) => current.left === left && current.width === width ? current : { left, width });
+    };
+    const update = () => {
+      updateMarker(profileTabsRef, profileTabButtonsRef.current.own, profileTab, setProfileTabMarker);
+      updateMarker(viewProfileTabsRef, profileTabButtonsRef.current.view, viewProfileTab, setViewProfileTabMarker);
+    };
+    update();
+    window.addEventListener("resize", update);
+    return () => window.removeEventListener("resize", update);
+  }, [profileTab, viewProfileTab, viewUserId, viewUser, tab, savedPosts.length]);
   const unreadMsgCount = conversations.filter((c) => c.unread).length;
   const unreadNotifCount = notifications.filter((n) => n.unread).length;
   const islandCount = unreadMsgCount + unreadNotifCount;
@@ -2254,8 +2304,11 @@ function TapApp() {
     e.preventDefault();
     const bodyText = stripHtml(composer.body).replace(/\s+/g, " ").trim();
     const title = composer.title.trim();
-    if (!title && !bodyText && !composer.mediaUrl) return;
+    const poll = composerPollOpen && postPollRef.current ? postPollRef.current.value : null;
+    if (composerPollOpen && !poll) { setToast("Добавьте вопрос и минимум два варианта"); return; }
+    if (!title && !bodyText && !composer.mediaUrl && !poll) return;
     const payload = { title, body: composer.body.trim() };
+    if (poll) payload.poll = poll;
     if (composer.mediaUrl) {
       payload.media_url = composer.mediaUrl;
       payload.media_type = composer.mediaType;
@@ -2264,6 +2317,7 @@ function TapApp() {
       .then((r) => {
         setPosts((prev) => [{ ...r.post, commentDraft: "" }, ...prev]);
         setComposer({ title: "", body: "", mediaUrl: "", mediaType: null, mediaName: "" });
+        setComposerPollOpen(false);
         setComposerOpen(false);
         setSort("new");
         setVisibleCount(BATCH_SIZE);
@@ -2827,6 +2881,33 @@ function TapApp() {
       method: "POST",
       credentials: "same-origin",
     }).catch(() => {});
+  }
+  async function sendChatPoll() {
+    const poll = chatPollRef.current && chatPollRef.current.value;
+    if (!poll) { setToast("Добавьте вопрос и минимум два варианта"); return; }
+    const convo = conversations.find((c) => c.id === openConvoId);
+    if (!convo || convo.blockedByMe || convo.blockedMe) { setToast("Нельзя отправить: пользователь заблокирован"); return; }
+    if (!e2eeReady() || !me) { setToast("Для голосований в чате требуется шифрование"); return; }
+    try {
+    const md = await makeMsgKey(convo.peerUserId);
+    if (!md) { setToast("Собеседник ещё не настроил шифрование"); return; }
+    const encrypted = await KoloE2EE.encryptMessage(md.msgKey, JSON.stringify(poll));
+    const result = await api(`/api/conversations/${openConvoId}/messages`, {
+      encrypted: true,
+      cipher_text: encrypted.cipher,
+      nonce: encrypted.nonce,
+      message_keys: md.message_keys,
+      poll: { multiple: poll.multiple, option_count: poll.options.length },
+    });
+    const message = { ...result.message, text: "", encrypted: true };
+    setConversations((prev) => prev.map((c) => (c.id === openConvoId
+      ? { ...c, messages: [...c.messages, message], time: "только что", e2ee: true }
+      : c)));
+    setChatPollOpen(false);
+    setToast("Опрос отправлен");
+    } catch (e) {
+    setToast("Не удалось отправить голосование");
+    }
   }
   async function sendMessage(templateText) {
     if (msgMedia.url) {
@@ -3488,6 +3569,7 @@ function TapApp() {
 
   function renderCard(p) {
     const isText = !p.media;
+    const displayTitle = safeStr(p.title).trim();
     const hasStory = p.story && p.story.frames && p.story.frames.length > 0;
     const storyBtn = hasStory ? (
       <button className="t-card-story" onClick={(e) => { e.stopPropagation(); openStory(p.story.frames); }} aria-label="Открыть историю">
@@ -3530,7 +3612,7 @@ function TapApp() {
       </div>
     ) : null;
     return (
-      <div key={p.id} className={"t-card" + (isText ? " t-card-text" : "")} onClick={() => setOpenPostId(p.id)}>
+      <div key={p.id} className={"t-card" + (isText ? " t-card-text" : "") + (p.pollId ? " t-card-poll" : "")} onClick={() => setOpenPostId(p.id)}>
         {isText ? (
           <div className="t-card-text">
             <div className="t-card-text-head">
@@ -3540,9 +3622,10 @@ function TapApp() {
             </div>
             {repostBanner}
             <div className="t-card-text-body">
-              {p.title && <div className="t-card-text-title">{renderHashtags(p.title, (tag) => { setQuery(tag); saveRecentSearch(tag); })}</div>}
+              {displayTitle && <div className="t-card-text-title">{renderHashtags(displayTitle, (tag) => { setQuery(tag); saveRecentSearch(tag); })}</div>}
               {p.body && <div className={"t-card-text-preview" + (htmlLike(p.body) ? " html" : "")} dangerouslySetInnerHTML={{ __html: bodyContent(p.body) }} />}
             </div>
+            {p.pollId && <div className="t-poll-wrap" onClick={(e) => e.stopPropagation()}><tap-poll poll-id={String(p.pollId)} /></div>}
             {actions}
           </div>
         ) : (
@@ -3563,7 +3646,8 @@ function TapApp() {
             </div>
             <div className="t-card-footer">
               {repostBanner}
-              {p.title && <div className="t-card-title">{renderHashtags(p.title, (tag) => { setQuery(tag); saveRecentSearch(tag); })}</div>}
+              {displayTitle && <div className="t-card-title">{renderHashtags(displayTitle, (tag) => { setQuery(tag); saveRecentSearch(tag); })}</div>}
+              {p.pollId && <div className="t-poll-wrap" onClick={(e) => e.stopPropagation()}><tap-poll poll-id={String(p.pollId)} /></div>}
               {actions}
             </div>
           </React.Fragment>
@@ -3823,6 +3907,14 @@ function TapApp() {
         .t-composer-head { font-size: 12px; font-weight: 700; color: var(--gold); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 10px; }
         .t-composer input, .t-composer textarea { width: 100%; background: var(--bg); border: 1px solid var(--border); color: var(--text); border-radius: 8px; padding: 9px 11px; font-size: 13.5px; margin-bottom: 8px; font-family: 'Unbounded', sans-serif; outline: none; }
         .t-composer input:focus, .t-composer textarea:focus { border-color: var(--gold); }
+        .t-poll-wrap, .t-chat-poll, .t-chat-poll-composer { margin: 12px 0; --tap-poll-surface: var(--surface); --tap-poll-border: var(--border); --tap-poll-text: var(--text); --tap-poll-muted: var(--text-dim); --tap-poll-accent: var(--gold); --tap-poll-accent-deep: var(--rust); }
+        .t-card.t-card-poll { aspect-ratio: auto; min-height: 300px; }
+        .t-card.t-card-poll .t-card-media { min-height: 130px; }
+        .t-card.t-card-poll .t-card-text { min-height: 300px; }
+        .t-chat-poll { margin: 0; min-width: min(320px, 62vw); }
+        .t-poll-toggle { margin: 2px 0 8px; }
+        .t-chat-poll-composer { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 12px; }
+        .t-chat-poll-composer .t-btn-solid { margin-top: 10px; }
         .t-composer textarea { resize: vertical; min-height: 60px; }
         .t-composer .ql-toolbar { background: var(--bg); border: 1px solid var(--border); border-radius: 10px 10px 0 0; border-bottom: none; padding: 6px 8px; }
         .t-composer .ql-container { border: 1px solid var(--border); border-radius: 0 0 10px 10px; background: var(--bg); font-family: 'Unbounded', sans-serif; font-size: 13.5px; margin-bottom: 8px; }
@@ -4306,6 +4398,8 @@ function TapApp() {
         .t-thread-input button:hover:not(:disabled) { transform: scale(1.06); filter: brightness(1.1); }
         .t-thread-input button:active:not(:disabled) { transform: scale(0.94); }
         .t-thread-input button:disabled { opacity: 0.4; cursor: default; }
+        .t-thread-input .t-chat-poll-toggle { background: none; border: 1px solid var(--border); color: var(--text-faint); width: 34px; height: 34px; }
+        .t-thread-input .t-chat-poll-toggle:hover { color: var(--gold); border-color: var(--gold); }
         .t-thread-input .t-mic-btn { width: 38px; background: linear-gradient(135deg, var(--teal), var(--teal-dark, #2a7a6e)); }
         .t-thread-input .t-voice-cancel { background: var(--surface); border: 1px solid var(--border); color: var(--text-dim); width: 34px; height: 34px; font-size: 14px; line-height: 1; }
         .t-thread-input .t-voice-stop { background: linear-gradient(135deg, #e4554f, #c0392b); width: 38px; }
@@ -4356,14 +4450,17 @@ function TapApp() {
         .t-profile-name-btn:hover { color: var(--teal); }
         .t-profile-tag { font-size: 12.5px; color: var(--text-faint); margin-top: 2px; }
         .t-profile-stats { display: flex; flex-wrap: wrap; justify-content: center; gap: 22px; margin-top: 16px; }
-        .t-profile-tabs { display: flex; gap: 8px; margin-bottom: 16px; }
+        .t-profile-tabs { position: relative; display: flex; gap: 8px; margin-bottom: 16px; }
         .t-profile-locked { text-align: center; padding: 40px 12px; border: 1px dashed var(--border); border-radius: 16px; color: var(--text-dim); }
         .t-profile-locked-ico { display: flex; align-items: center; justify-content: center; width: 52px; height: 52px; margin: 0 auto 14px; border-radius: 16px; background: var(--surface); border: 1px solid var(--border); color: var(--accent); }
         .t-profile-locked-title { font-size: 15px; font-weight: 700; color: var(--text); margin-bottom: 6px; font-family: 'Unbounded', sans-serif; }
         .t-profile-locked-sub { font-size: 12.5px; color: var(--text-faint); line-height: 1.55; max-width: 320px; margin: 0 auto; }
-        .t-profile-tab { flex: none; display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-width: 40px; height: 40px; padding: 0 12px; background: var(--surface); border: 1px solid var(--border); color: var(--text-dim); border-radius: 12px; font-size: 12.5px; font-weight: 700; cursor: pointer; font-family: 'Unbounded', sans-serif; transition: background .15s, color .15s, border-color .15s; }
-        .t-profile-tab:hover { color: var(--text); border-color: var(--gold); }
-        .t-profile-tab.active { background: var(--gold); color: #17170F; border-color: var(--gold); }
+        .t-profile-tab-slider { position: absolute; z-index: 0; top: 0; bottom: 0; left: 0; width: 0; border-radius: 12px; background: var(--gold); pointer-events: none; transition: transform .32s cubic-bezier(.22,1,.36,1), width .32s cubic-bezier(.22,1,.36,1); }
+        .t-profile-tab { position: relative; z-index: 1; flex: none; display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-width: 40px; height: 40px; padding: 0 12px; background: var(--surface); border: 1px solid var(--border); color: var(--text-dim); border-radius: 12px; font-size: 12.5px; font-weight: 700; cursor: pointer; font-family: 'Unbounded', sans-serif; transition: background .15s, color .22s, border-color .22s, transform .18s; }
+        .t-profile-tab:not(.active):hover { color: var(--text); border-color: var(--gold); }
+        .t-profile-tab:active { transform: scale(.96); }
+        .t-profile-tab.active { background: transparent; color: #17170F; border-color: transparent; }
+        @media (prefers-reduced-motion: reduce) { .t-profile-tab-slider, .t-profile-tab { transition: none; } }
         .t-tab-label { white-space: nowrap; }
         .t-tab-count { display: inline-flex; align-items: center; justify-content: center; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px; background: rgba(255,255,255,0.08); color: var(--text-dim); font-size: 11px; font-weight: 700; flex-shrink: 0; }
         .t-profile-tab.active .t-tab-count { background: rgba(0,0,0,0.18); color: #17170F; }
@@ -4757,23 +4854,27 @@ function TapApp() {
                 {(searchFilter === "all" || searchFilter === "posts") && searchPosts.length > 0 && (
                   <div>
                     <div className="t-sr-label">Посты<span className="t-sr-count">{searchPosts.length}</span></div>
-                    {searchPosts.map((p) => (
-                      <div key={p.id} className="t-srow" onClick={() => { setSearchOverlayOpen(false); setOpenPostId(p.id); }}>
-                        <div className="t-srow-avatar" style={{ background: solidFor(p.author) }}>{p.avatarInitials}</div>
-                        <div className="t-srow-main">
-                          <div className="t-srow-title">{highlight(p.title, query)}</div>
-                          {p.body && <div className="t-srow-desc">{highlight(truncText(stripHtml(p.body), 100), query)}</div>}
-                          <div className="t-srow-meta">
-                            <span>{p.author}</span>
-                            <span className="dot">·</span>
-                            <span>{p.authorHandle}</span>
-                            <span className="dot">·</span>
-                            <span className="t-srow-score">▲ {formatScore(p.score)}</span>
+                    {searchPosts.map((p) => {
+                      const title = safeStr(p.title).trim();
+                      const bodyPreview = truncText(stripHtml(p.body).trim(), 100);
+                      return (
+                        <div key={p.id} className="t-srow" onClick={() => { setSearchOverlayOpen(false); setOpenPostId(p.id); }}>
+                          <div className="t-srow-avatar" style={{ background: solidFor(p.author) }}>{p.avatarInitials}</div>
+                          <div className="t-srow-main">
+                            <div className="t-srow-title">{highlight(title || bodyPreview, query)}</div>
+                            {title && bodyPreview && <div className="t-srow-desc">{highlight(bodyPreview, query)}</div>}
+                            <div className="t-srow-meta">
+                              <span>{p.author}</span>
+                              <span className="dot">·</span>
+                              <span>{p.authorHandle}</span>
+                              <span className="dot">·</span>
+                              <span className="t-srow-score">▲ {formatScore(p.score)}</span>
+                            </div>
                           </div>
+                          {p.media && p.media.url && p.media.type === "image" && <img className="t-srow-thumb" src={p.media.url} alt="" loading="lazy" />}
                         </div>
-                        {p.media && p.media.url && p.media.type === "image" && <img className="t-srow-thumb" src={p.media.url} alt="" loading="lazy" />}
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
                 {(searchFilter === "all" || searchFilter === "comments") && searchComments.length > 0 && (
@@ -4835,6 +4936,15 @@ function TapApp() {
                     <textarea placeholder="Добавьте описание (необязательно)" value={composer.body} onChange={(e) => setComposer((c) => ({ ...c, body: e.target.value }))} />
                   )}
 
+                  <button type="button" className="t-btn-ghost t-poll-toggle" onClick={() => setComposerPollOpen((open) => !open)}>
+                    {composerPollOpen ? "Убрать голосование" : "＋ Голосование"}
+                  </button>
+                  {composerPollOpen && (
+                    <div className="t-poll-wrap">
+                      <tap-poll ref={postPollRef} mode="create" />
+                    </div>
+                  )}
+
                   {composer.mediaUrl ? (
                     <div className="t-media-preview">
                       {composer.mediaType === "video" ? (
@@ -4853,8 +4963,8 @@ function TapApp() {
                   )}
 
                   <div className="t-composer-actions">
-                    <button type="button" className="t-btn-ghost" onClick={() => setComposerOpen(false)}>Отмена</button>
-                    <button type="submit" className="t-btn-solid" disabled={!composer.title.trim() && !stripHtml(composer.body).trim() && !composer.mediaUrl}>Опубликовать</button>
+                    <button type="button" className="t-btn-ghost" onClick={() => { setComposerPollOpen(false); setComposerOpen(false); }}>Отмена</button>
+                    <button type="submit" className="t-btn-solid" disabled={!composer.title.trim() && !stripHtml(composer.body).trim() && !composer.mediaUrl && !composerPollOpen}>Опубликовать</button>
                   </div>
                 </form>
               )}
@@ -5345,7 +5455,7 @@ function TapApp() {
                         </div>
                         <div className="t-convo-card-name">{c.name}{c.unread && <span className="t-unread-dot" />}</div>
                         <div className={"t-convo-card-status" + (p.online ? " on" : "")}>{p.label || "не в сети"}</div>
-                        <div className="t-convo-preview">{c.messages.length ? (c.e2ee ? "🔒 " : "") + c.messages[c.messages.length - 1].text : "Нет сообщений"}</div>
+                        <div className="t-convo-preview">{c.messages.length ? (c.e2ee ? "🔒 " : "") + (c.messages[c.messages.length - 1].pollId ? "📊 Опрос" : c.messages[c.messages.length - 1].text) : "Нет сообщений"}</div>
                       </div>
                     );
                   })}
@@ -5409,6 +5519,10 @@ function TapApp() {
                               </div>
                               <div className="t-chat-post-score" style={{ color: "var(--gold)" }}>▲ {formatScore(m.post.score)}</div>
                             </div>
+                          ) : m.pollId ? (
+                            <div className="t-chat-poll" onClick={(e) => e.stopPropagation()}>
+                              <tap-poll poll-id={String(m.pollId)} ref={(el) => { if (el) el.decodePoll = decodePollForChat; }} />
+                            </div>
                           ) : m.media && m.media.type && (m.media.type === "image" || m.media.type.indexOf("video") === 0) ? (
                             <div className="t-msg-media" style={{ cursor: "zoom-in" }} onClick={(e) => { e.stopPropagation(); openMediaViewer([{ url: m.media.url, type: m.media.type.indexOf("video") === 0 ? "video" : "image", title: "", text: "", author: openConvo_.name, authorHandle: "", authorId: openConvo_.peerUserId, avatarInitials: openConvo_.avatarInitials }], 0); }}>
                               {m.media.type.indexOf("video") === 0 ? <video src={m.media.url} controls /> : <img src={m.media.url} alt="" onError={imgErr} />}
@@ -5453,6 +5567,12 @@ function TapApp() {
                     <button key={i} className="t-quick-chip" onClick={() => sendMessage(q)}>{q}</button>
                   ))}
                 </div>
+                {chatPollOpen && !openConvo_.blockedByMe && !openConvo_.blockedMe && (
+                  <div className="t-chat-poll-composer">
+                    <tap-poll ref={chatPollRef} mode="create" />
+                    <button type="button" className="t-btn-solid" onClick={sendChatPoll}>Отправить голосование</button>
+                  </div>
+                )}
                 {(openConvo_.blockedByMe || openConvo_.blockedMe) ? (
                   <div className="t-thread-input t-thread-input-disabled">
                     <input placeholder="Сообщение" disabled />
@@ -5468,6 +5588,7 @@ function TapApp() {
                     </React.Fragment>
                   ) : (
                     <React.Fragment>
+                      <button className="t-chat-poll-toggle" type="button" onClick={() => setChatPollOpen((open) => !open)} title="Создать голосование" aria-label="Создать голосование"><Plus size={16} /></button>
                       <label className="t-msg-attach" title="Прикрепить фото или видео">
                         <Image size={17} />
                         <input type="file" accept="image/*,video/*" onChange={handleMsgMediaFile} hidden />
@@ -5595,10 +5716,11 @@ function TapApp() {
                   </div>
                 </form>
               )}
-              <div className="t-profile-tabs">
-                <button className={"t-profile-tab" + (profileTab === "posts" ? " active" : "")} onClick={() => setProfileTab("posts")} title="Посты" aria-label="Посты"><PenLine size={15} /></button>
-                <button className={"t-profile-tab" + (profileTab === "reposts" ? " active" : "")} onClick={() => setProfileTab("reposts")} title="Репосты" aria-label="Репосты"><Repeat size={15} /></button>
-                <button className={"t-profile-tab" + (profileTab === "saved" ? " active" : "")} onClick={() => setProfileTab("saved")} title="Сохранённые посты" aria-label="Сохранённые посты">
+              <div className="t-profile-tabs" ref={profileTabsRef}>
+                <span className="t-profile-tab-slider" style={{ width: profileTabMarker.width, transform: `translateX(${profileTabMarker.left}px)` }} />
+                <button ref={(el) => { profileTabButtonsRef.current.own.posts = el; }} className={"t-profile-tab" + (profileTab === "posts" ? " active" : "")} onClick={() => setProfileTab("posts")} title="Посты" aria-label="Посты"><PenLine size={15} /></button>
+                <button ref={(el) => { profileTabButtonsRef.current.own.reposts = el; }} className={"t-profile-tab" + (profileTab === "reposts" ? " active" : "")} onClick={() => setProfileTab("reposts")} title="Репосты" aria-label="Репосты"><Repeat size={15} /></button>
+                <button ref={(el) => { profileTabButtonsRef.current.own.saved = el; }} className={"t-profile-tab" + (profileTab === "saved" ? " active" : "")} onClick={() => setProfileTab("saved")} title="Сохранённые посты" aria-label="Сохранённые посты">
                   <Bookmark size={15} />
                   <span className="t-tab-count">{savedPosts.length}</span>
                 </button>
@@ -5676,9 +5798,10 @@ function TapApp() {
                 </div>
               ) : (
               <React.Fragment>
-              <div className="t-profile-tabs">
-                <button className={"t-profile-tab" + (viewProfileTab === "posts" ? " active" : "")} onClick={() => setViewProfileTab("posts")} title="Посты" aria-label="Посты"><PenLine size={15} /></button>
-                <button className={"t-profile-tab" + (viewProfileTab === "reposts" ? " active" : "")} onClick={() => setViewProfileTab("reposts")} title="Репосты" aria-label="Репосты"><Repeat size={15} /></button>
+              <div className="t-profile-tabs" ref={viewProfileTabsRef}>
+                <span className="t-profile-tab-slider" style={{ width: viewProfileTabMarker.width, transform: `translateX(${viewProfileTabMarker.left}px)` }} />
+                <button ref={(el) => { profileTabButtonsRef.current.view.posts = el; }} className={"t-profile-tab" + (viewProfileTab === "posts" ? " active" : "")} onClick={() => setViewProfileTab("posts")} title="Посты" aria-label="Посты"><PenLine size={15} /></button>
+                <button ref={(el) => { profileTabButtonsRef.current.view.reposts = el; }} className={"t-profile-tab" + (viewProfileTab === "reposts" ? " active" : "")} onClick={() => setViewProfileTab("reposts")} title="Репосты" aria-label="Репосты"><Repeat size={15} /></button>
               </div>
               {viewProfileTab === "posts" ? (
                 posts.filter((p) => p.authorId === viewUserId && !p.repostOf).length === 0 ? (
@@ -6494,9 +6617,10 @@ function TapApp() {
             <div className="t-composer-head">Новая история</div>
             <label className="t-field-label">К какому посту прикрепить</label>
             <select className="t-input" value={storyForm.postId} onChange={(e) => setStoryForm((f) => ({ ...f, postId: e.target.value }))}>
-              {posts.filter((p) => p.isMine).map((p) => (
-                <option key={p.id} value={p.id}>{p.title.slice(0, 60)}</option>
-              ))}
+              {posts.filter((p) => p.isMine).map((p) => {
+                const title = safeStr(p.title).trim() || truncText(stripHtml(p.body).trim(), 60) || "Без заголовка";
+                return <option key={p.id} value={p.id}>{title}</option>;
+              })}
             </select>
             <label className="t-field-label">Фото или видео</label>
             {storyForm.mediaUrl ? (

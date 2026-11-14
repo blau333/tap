@@ -5,6 +5,7 @@ mod db;
 mod handlers;
 mod mail;
 mod models;
+mod polls;
 
 use axum::http::header::{CACHE_CONTROL, HeaderValue};
 use axum::routing::{delete, get, post};
@@ -36,6 +37,8 @@ async fn main() -> anyhow::Result<()> {
         .route("/app", get(handlers::app_page))
         .route("/api/bootstrap", get(api::bootstrap))
         .route("/api/posts", post(api::create_post))
+        .route("/api/polls/:id", get(polls::get))
+        .route("/api/polls/:id/vote", post(polls::vote))
         .route("/api/posts/:id/vote", post(api::vote))
         .route("/api/posts/:id/save", post(api::toggle_save))
         .route("/api/posts/:id/repost", post(api::repost))
